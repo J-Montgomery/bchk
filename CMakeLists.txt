@@ -16,6 +16,9 @@ add_custom_target(format COMMAND clang-format-18 -i ${ALL_SOURCE_FILES})
 find_package(Clang CONFIG REQUIRED)
 find_package(LLVM CONFIG REQUIRED)
 
+find_package(dartfrog REQUIRED)
+include_directories(${dartfrog_INCLUDE_DIRS})
+
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 
@@ -33,4 +36,5 @@ add_executable(borrowck src/main.cpp)
 target_link_libraries(borrowck PRIVATE
     clang-cpp
     LLVM
+    dartfrog
 )
