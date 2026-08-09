@@ -21,6 +21,20 @@ struct Point {
     size_t statement;
 };
 
+bool CFGVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *rd) {
+    if (!rd->isCompleteDefinition())
+        return true;
+
+    for (const auto *field : rd->fields()) {
+        // TODO: Update this to emit facts that will allow checking send/sync
+        // violations
+    }
+    rd->print(llvm::outs(), this->ctx.getLangOpts());
+
+    llvm::outs() << "\n";
+    return true;
+}
+
 bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
     if (!fd || !fd->hasBody())
         return true;
@@ -42,6 +56,8 @@ bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
     }
 
     cfg->print(llvm::outs(), this->ctx.getLangOpts(), true);
+
+    llvm::outs() << "\n";
     return true;
 
     // for (const clang::CFGBlock *block : cfg) {

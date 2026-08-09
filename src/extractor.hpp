@@ -16,6 +16,7 @@ class CFGVisitor : public clang::RecursiveASTVisitor<CFGVisitor> {
   public:
     explicit CFGVisitor(clang::ASTContext &ctx) : ctx(ctx) {}
 
+    bool VisitCXXRecordDecl(clang::CXXRecordDecl *rd);
     bool VisitFunctionDecl(clang::FunctionDecl *fd);
 
   private:
