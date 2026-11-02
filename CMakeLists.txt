@@ -48,6 +48,18 @@ target_compile_options(bchk_core PRIVATE -Wall -Wextra)
 target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
 ## Formatter
+
+### This would ideally use get_target_property() over the targets, but that feels
+### more fragile to me
+file(GLOB_RECURSE ALL_SOURCE_FILES
+    CONFIGURE_DEPENDS
+    "src/*.cpp"
+    "src/*.hpp"
+    "headers/*.h"
+    "test/*.cpp"
+    "test/*.hpp"
+)
+
 find_program(CLANG_FORMAT 
     NAMES clang-format-${LLVM_VERSION_MAJOR} clang-format
     DOC "Path to clang-format executable"
