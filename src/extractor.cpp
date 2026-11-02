@@ -17,7 +17,7 @@
 
 #include "extractor.hpp"
 
-namespace borrowchk {
+namespace bchk {
 
 struct Point {
     size_t block;
@@ -289,4 +289,4 @@ bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
     return true;
 }
 
-} // namespace borrowchk
+} // namespace bchk

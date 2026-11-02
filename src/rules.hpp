@@ -6,7 +6,7 @@
 
 #include <datalog.hpp>
 
-namespace borrowchk {
+namespace bchk {
 
 using Sym = uint64_t;
 
@@ -27,4 +27,4 @@ struct Facts {
 struct Program {
     Facts facts;
 };
-} // namespace borrowchk
+} // namespace bchk

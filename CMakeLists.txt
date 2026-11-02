@@ -34,7 +34,7 @@ include_directories(${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 find_package(dartfrog REQUIRED)
 
 ## BCHK core
-add_library(bchk_core src/extractor.cpp)
+add_library(bchk_core src/extractor.cpp src/checker.cpp)
 target_include_directories(bchk_core PUBLIC src)
 target_include_directories(bchk_core SYSTEM PUBLIC
                                      ${dartfrog_INCLUDE_DIRS}

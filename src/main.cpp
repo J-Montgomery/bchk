@@ -9,7 +9,7 @@
 
 #include "extractor.hpp"
 
-using namespace borrowchk;
+using namespace bchk;
 
 static llvm::cl::OptionCategory BorrowckCategory("borrowck options");
 static llvm::cl::list<std::string>

@@ -10,7 +10,7 @@
 
 #include "rules.hpp"
 
-namespace borrowchk {
+namespace bchk {
 
 class CFGVisitor : public clang::RecursiveASTVisitor<CFGVisitor> {
   public:
@@ -41,4 +41,4 @@ class CFGAction : public clang::ASTFrontendAction {
     }
 };
 
-} // namespace borrowchk
+} // namespace bchk

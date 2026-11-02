@@ -10,7 +10,8 @@
 
 class Interner {
   public:
-    using Sym = uint64_t Sym intern(std::string_view str) {
+    using Sym = uint64_t;
+    Sym intern(std::string_view str) {
         if (const auto it = ids_.find(str); it != ids_.end()) {
             return it->second;
         }
