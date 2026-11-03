@@ -41,7 +41,8 @@ int main(int argc, const char **argv) {
     clang::tooling::ClangTool Tool(Compilations, SourcePaths);
 
     Tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
-        "-DBCHK_ANNOTATIONS=1", clang::tooling::ArgumentInsertPosition::BEGIN));
+        {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
+        clang::tooling::ArgumentInsertPosition::BEGIN));
     return Tool.run(
         clang::tooling::newFrontendActionFactory<CFGAction>().get());
 }
