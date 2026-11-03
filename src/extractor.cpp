@@ -289,4 +289,18 @@ bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
     return true;
 }
 
+ExtractedFactSet
+run_extract(const clang::tooling::CompilationDatabase &compilations) {
+    ExtractedFactSet facts = {};
+    // clang::tooling::ClangTool Tool(Compilations, SourcePaths);
+
+    // Tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
+    //     {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
+    //     clang::tooling::ArgumentInsertPosition::BEGIN));
+    // return Tool.run(
+    //     clang::tooling::newFrontendActionFactory<CFGAction>().get());
+
+    return std::move(facts);
+}
+
 } // namespace bchk

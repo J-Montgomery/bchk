@@ -1,14 +1,22 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <set>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "clang/Basic/SourceLocation.h"
 #include <datalog.hpp>
+
+#include "intern.hpp"
 
 namespace bchk {
 
 using Sym = uint64_t;
+using SrcLoc = clang::SourceLocation;
 
 #define EXTRACT_RELATION(X)                                                    \
     X(init, 2)    /* (Region, Pt) */                                           \
@@ -27,4 +35,26 @@ struct Facts {
 struct Program {
     Facts facts;
 };
+
+struct ExtractedFactSet {
+    Facts facts;
+    Interner interner;
+    std::unordered_map<Sym, SrcLoc> point_loc;
+    std::set<std::string> defined;
+};
+
+struct Error {
+    std::string relation;
+    size_t arity;
+    std::array<Sym, 4> columns;
+    std::string text;
+    SrcLoc loc;
+    bool warning;
+};
+
+struct Report {
+    bool verified;
+    std::vector<Error> errors;
+};
+
 } // namespace bchk

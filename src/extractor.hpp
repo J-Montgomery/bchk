@@ -8,6 +8,7 @@
 #include <clang/Frontend/FrontendAction.h>
 #include <clang/Tooling/Tooling.h>
 
+#include "intern.hpp"
 #include "rules.hpp"
 
 namespace bchk {
@@ -41,4 +42,6 @@ class CFGAction : public clang::ASTFrontendAction {
     }
 };
 
+ExtractedFactSet
+run_extract(const clang::tooling::CompilationDatabase &compilations);
 } // namespace bchk
