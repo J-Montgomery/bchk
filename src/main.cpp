@@ -11,23 +11,37 @@
 
 using namespace bchk;
 
-static llvm::cl::OptionCategory BorrowckCategory("borrowck options");
+static llvm::cl::OptionCategory BchkCategory("bchk Options");
+
+static llvm::cl::list<std::string>
+    CompilerFlags(llvm::cl::Sink, llvm::cl::desc("Compiler flags"));
+
 static llvm::cl::list<std::string>
     SourcePaths(llvm::cl::Positional, llvm::cl::desc("<input source files>"),
-                llvm::cl::OneOrMore, llvm::cl::cat(BorrowckCategory));
+                llvm::cl::OneOrMore, llvm::cl::cat(BchkCategory));
+
+const char *BchkVersion = "0.0.1";
 
 int main(int argc, const char **argv) {
-    llvm::cl::HideUnrelatedOptions(BorrowckCategory);
-    llvm::cl::ParseCommandLineOptions(argc, argv, "Borrow checker tool\n");
+    llvm::cl::HideUnrelatedOptions(BchkCategory);
+    llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
+        OS << "bchk v" << BchkVersion << " (LLVM v" << LLVM_VERSION << ")\n";
+    });
 
-    std::vector<std::string> DefaultArgs = {"-std=c++20"};
-    clang::tooling::FixedCompilationDatabase Compilations(".", DefaultArgs);
+    const char *Overview = "C borrowchecker\n";
+    llvm::cl::ParseCommandLineOptions(argc, argv, Overview);
 
-    for (llvm::StringRef SourcePath : SourcePaths) {
-        llvm::outs() << "Found input source: " << SourcePath << "\n";
+    if (CompilerFlags.empty()) {
+        llvm::errs() << "ERROR: no input files or arguments\n";
+        return 1;
     }
 
+    std::vector<std::string> Args = CompilerFlags;
+    clang::tooling::FixedCompilationDatabase Compilations(".", Args);
     clang::tooling::ClangTool Tool(Compilations, SourcePaths);
+
+    Tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
+        "-DBCHK_ANNOTATIONS=1", clang::tooling::ArgumentInsertPosition::BEGIN));
     return Tool.run(
         clang::tooling::newFrontendActionFactory<CFGAction>().get());
 }
