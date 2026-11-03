@@ -84,7 +84,7 @@ endif()
 
 
 ## BCHK main
-add_executable(bchk src/main.cpp)
+add_executable(bchk src/main.cpp -Wno-unused-parameter)
 target_compile_options(bchk PRIVATE -Wall -Wextra)
 target_compile_definitions(bchk PRIVATE
                            LLVM_VERSION="${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}"
