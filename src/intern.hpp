@@ -13,7 +13,7 @@
 
 class Interner {
   public:
-    using Sym = int64_t;
+    using Sym = int32_t;
     Sym intern(std::string_view str) {
         if (const auto it = ids.find(str); it != ids.end()) {
             return it->second;

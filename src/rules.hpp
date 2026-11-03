@@ -19,7 +19,7 @@
 
 namespace bchk {
 
-using Sym = int64_t;
+using Sym = int32_t;
 using SrcLoc = clang::SourceLocation;
 using PointSourceMap = std::unordered_map<Sym, SrcLoc>;
 
