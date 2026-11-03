@@ -1,309 +1,163 @@
-// #include <clang/AST/ASTConsumer.h>
-// #include <clang/AST/ASTContext.h>
-// #include <clang/AST/Attr.h>
-// #include <clang/AST/RecursiveASTVisitor.h>
-// #include <clang/Analysis/CFG.h>
-// #include <clang/Basic/SourceManager.h>
-// #include <clang/Frontend/CompilerInstance.h>
-// #include <clang/Frontend/FrontendAction.h>
-// #include <clang/Tooling/Tooling.h>
-// #include <llvm/Support/raw_ostream.h>
+#include "clang/Tooling/CompilationDatabase.h"
+#include <clang/AST/ASTConsumer.h>
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/Attr.h>
+#include <clang/AST/Decl.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/Analysis/CFG.h>
+#include <clang/Basic/SourceManager.h>
+#include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/FrontendAction.h>
+#include <clang/Tooling/Tooling.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <cstdint>
 #include <format>
 #include <iostream>
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "cfg_abstractions.hpp"
 #include "extractor.hpp"
+#include "rules.hpp"
 
 namespace bchk {
 
-struct Point {
-    size_t block;
-    size_t statement;
-};
+// enum class BorrowKind { None, Owner, Borrow, MutBorrow };
 
-enum class BorrowKind { None, Owner, Borrow, MutBorrow };
+// static BorrowKind getBorrowKind(const clang::Decl *decl) {
+//     if (!decl)
+//         return BorrowKind::None;
+//     for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
+//         llvm::StringRef ann = attr->getAnnotation();
+//         if (ann == "bc_owner")
+//             return BorrowKind::Owner;
+//         if (ann == "bc_borrow")
+//             return BorrowKind::Borrow;
+//         if (ann == "bc_mut_borrow")
+//             return BorrowKind::MutBorrow;
+//     }
+//     return BorrowKind::None;
+// }
 
-struct ActiveBorrow {
-    std::string borrow_var;
-    std::string origin_var;
-    BorrowKind kind;
-    size_t scope_depth;
-    clang::SourceLocation decl_loc;
-};
+// static bool hasAnnotation(const clang::Decl *decl, llvm::StringRef target) {
+//     if (!decl)
+//         return false;
+//     for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
+//         if (attr->getAnnotation() == target)
+//             return true;
+//     }
+//     return false;
+// }
 
-static BorrowKind getBorrowKind(const clang::Decl *decl) {
-    if (!decl)
-        return BorrowKind::None;
-    for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-        llvm::StringRef ann = attr->getAnnotation();
-        if (ann == "bc_owner")
-            return BorrowKind::Owner;
-        if (ann == "bc_borrow")
-            return BorrowKind::Borrow;
-        if (ann == "bc_mut_borrow")
-            return BorrowKind::MutBorrow;
-    }
-    return BorrowKind::None;
-}
+class FactExtractorVisitor
+    : public clang::RecursiveASTVisitor<FactExtractorVisitor> {
+    clang::ASTContext &context;
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
 
-static bool hasAnnotation(const clang::Decl *decl, llvm::StringRef target) {
-    if (!decl)
-        return false;
-    for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-        if (attr->getAnnotation() == target)
-            return true;
-    }
-    return false;
-}
+    std::string current_fn;
+    Sym fn_exit = -1;
+    Sym current_point = -1;
+    int alloc_seq = 0;
+    ControlBuilder control;
+    PlaceBuilder places;
 
-static const clang::VarDecl *extractOriginVar(const clang::Expr *expr) {
-    if (!expr)
-        return nullptr;
-    expr = expr->IgnoreParenImpCasts();
-
-    if (const auto *op = llvm::dyn_cast<clang::UnaryOperator>(expr)) {
-        if (op->getOpcode() == clang::UO_AddrOf) {
-            return extractOriginVar(op->getSubExpr());
-        }
-    }
-    if (const auto *ref = llvm::dyn_cast<clang::DeclRefExpr>(expr)) {
-        return llvm::dyn_cast<clang::VarDecl>(ref->getDecl());
-    }
-    if (const auto *call = llvm::dyn_cast<clang::CXXMemberCallExpr>(expr)) {
-        if (const auto *obj = call->getImplicitObjectArgument()) {
-            return extractOriginVar(obj);
-        }
-    }
-    return nullptr;
-}
-
-class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
-    clang::ASTContext &ctx;
-    size_t scope_depth = 0;
-    std::vector<ActiveBorrow> active_borrows;
-
-    std::string formatLoc(clang::SourceLocation loc) const {
-        if (loc.isInvalid())
-            return "<unknown location>";
-
-        const auto &sm = ctx.getSourceManager();
-
-        clang::SourceLocation file_loc = sm.getFileLoc(loc);
-
-        clang::PresumedLoc p_loc = sm.getPresumedLoc(file_loc);
-        if (p_loc.isInvalid())
-            return "<invalid location>";
-
-        return std::format("{}:{}:{}", p_loc.getFilename(), p_loc.getLine(),
-                           p_loc.getColumn());
-    }
+    std::unordered_map<const clang::Stmt *, Sym> stmt_pt;
+    std::unordered_map<const clang::ValueDecl *, Sym> var_pt;
+    std::unordered_map<Sym, Sym> current_alloc;
 
   public:
-    explicit LexicalASTVisitor(clang::ASTContext &ctx) : ctx(ctx) {}
+    FactExtractorVisitor(clang::ASTContext &context, Interner &interner,
+                         Facts &facts, PointSourceMap &point_loc)
+        : context(context), interner(interner), facts(facts),
+          point_loc(point_loc), control(interner, facts),
+          places(interner, facts) {}
+};
 
-    bool traverseCompoundStmt(clang::CompoundStmt *compound_stmt) {
-        scope_depth++;
-        bool result =
-            clang::RecursiveASTVisitor<LexicalASTVisitor>::TraverseCompoundStmt(
-                compound_stmt);
+class FactExtractorConsumer final : public clang::ASTConsumer {
+    clang::ASTContext *context = nullptr;
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
 
-        std::erase_if(active_borrows, [this](const ActiveBorrow &b) {
-            return b.scope_depth == scope_depth;
-        });
+  public:
+    FactExtractorConsumer(Interner &interner, Facts &facts,
+                          PointSourceMap &point_loc)
+        : interner(interner), facts(facts), point_loc(point_loc) {}
 
-        scope_depth--;
-        return result;
-    }
+    void Initialize(clang::ASTContext &ctx) override { context = &ctx; }
 
-    bool visitVarDecl(clang::VarDecl *var_decl) {
-        BorrowKind kind = getBorrowKind(var_decl);
-        if (kind == BorrowKind::None)
-            return true;
-
-        std::string var_name = var_decl->getNameAsString();
-        clang::SourceLocation vd_loc = var_decl->getLocation();
-
-        if (kind == BorrowKind::Owner) {
-            llvm::outs() << std::format(
-                "{} [AST Scope {}] Registered Owner: {}\n", formatLoc(vd_loc),
-                scope_depth, var_name);
-            return true;
-        }
-
-        const clang::Expr *init = var_decl->getInit();
-        const clang::VarDecl *origin_vd = extractOriginVar(init);
-
-        if (!origin_vd) {
-            llvm::errs() << std::format("{} [AST ERROR] Borrow '{}' target "
-                                        "origin could not be resolved\n",
-                                        formatLoc(vd_loc), var_name);
-            return true;
-        }
-
-        std::string origin_name = origin_vd->getNameAsString();
-
-        for (const auto &b : active_borrows) {
-            if (b.origin_var != origin_name)
-                continue;
-
-            if (kind == BorrowKind::MutBorrow ||
-                b.kind == BorrowKind::MutBorrow) {
-                llvm::errs() << std::format(
-                    "{} [BORROW VIOLATION] Cannot acquire {} '{}' on origin "
-                    "'{}': conflict with active {} '{}' (declared at {})\n",
-                    formatLoc(vd_loc),
-                    (kind == BorrowKind::MutBorrow ? "MUT_BORROW" : "BORROW"),
-                    var_name, origin_name,
-                    (b.kind == BorrowKind::MutBorrow ? "MUT_BORROW" : "BORROW"),
-                    b.borrow_var, formatLoc(b.decl_loc));
-            }
-        }
-
-        const ActiveBorrow new_borrow = {.borrow_var = var_name,
-                                         .origin_var = origin_name,
-                                         .kind = kind,
-                                         .scope_depth = scope_depth,
-                                         .decl_loc = vd_loc};
-        active_borrows.push_back(new_borrow);
-
-        llvm::outs() << std::format(
-            "{} [AST Scope {}] Registered Borrow: {} -> {} ({})\n",
-            formatLoc(vd_loc), scope_depth, var_name, origin_name,
-            kind == BorrowKind::MutBorrow ? "MUT" : "SHARED");
-        return true;
-    }
-
-    bool visitCxxMemberCallExpr(clang::CXXMemberCallExpr *call) {
-        const clang::CXXMethodDecl *method = call->getMethodDecl();
-        if (!method)
-            return true;
-
-        bool is_invalidating = hasAnnotation(method, "bc_invalidates");
-        bool is_destroying = hasAnnotation(method, "bc_destroy");
-
-        if (!is_invalidating && !is_destroying)
-            return true;
-
-        const clang::Expr *obj_expr = call->getImplicitObjectArgument();
-        const clang::VarDecl *origin_vd = extractOriginVar(obj_expr);
-        if (!origin_vd)
-            return true;
-
-        std::string origin_name = origin_vd->getNameAsString();
-        clang::SourceLocation call_loc = call->getExprLoc();
-
-        for (const auto &b : active_borrows) {
-            if (b.origin_var == origin_name) {
-                llvm::errs() << std::format(
-                    "{} [BORROW VIOLATION] method '{}' invalidates '{}' while "
-                    "active borrow '{}' (declared at {}) exists in scope\n",
-                    formatLoc(call_loc), method->getNameAsString(), origin_name,
-                    b.borrow_var, formatLoc(b.decl_loc));
-            }
-        }
-        return true;
+    void HandleTranslationUnit(clang::ASTContext &ctx) override {
+        FactExtractorVisitor visitor(ctx, interner, facts, point_loc);
+        visitor.TraverseDecl(ctx.getTranslationUnitDecl());
     }
 };
 
-bool CFGVisitor::visitCxxRecordDecl(clang::CXXRecordDecl *rd) {
-    if (!rd->isCompleteDefinition())
-        return true;
+class FactExtractorAction final : public clang::ASTFrontendAction {
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
 
-    for (const auto *field : rd->fields()) {
-        BorrowKind kind = getBorrowKind(field);
-        if (kind != BorrowKind::None) {
-            llvm::outs() << std::format("Record '{}' field '{}' annotated\n",
-                                        rd->getNameAsString(),
-                                        field->getNameAsString());
-        }
+  public:
+    FactExtractorAction(Interner &interner, Facts &facts,
+                        PointSourceMap &point_loc)
+        : interner(interner), facts(facts), point_loc(point_loc) {}
+
+    std::unique_ptr<clang::ASTConsumer>
+    CreateASTConsumer(clang::CompilerInstance &, llvm::StringRef) {
+        return std::make_unique<FactExtractorConsumer>(interner, facts,
+                                                       point_loc);
     }
-    rd->print(llvm::outs(), this->ctx.getLangOpts());
-    llvm::outs() << "\n";
-    return true;
-}
+};
 
-bool CFGVisitor::visitFunctionDecl(clang::FunctionDecl *fd) {
-    if (!fd || !fd->hasBody())
-        return true;
+class FactExtractorFactory final
+    : public clang::tooling::FrontendActionFactory {
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
 
-    llvm::outs() << std::format("Analyzing function {}\n",
-                                fd->getQualifiedNameAsString());
+  public:
+    FactExtractorFactory(Interner &interner, Facts &facts,
+                         PointSourceMap &point_loc)
+        : interner(interner), facts(facts), point_loc(point_loc) {}
 
-    LexicalASTVisitor ast_visitor(this->ctx);
-    ast_visitor.TraverseStmt(fd->getBody());
-
-    clang::CFG::BuildOptions options;
-    options.AddInitializers = true;
-    options.AddEHEdges = true;
-    options.AddLifetime = true;
-    options.AddScopes = true;
-    options.AddStaticInitBranches = true;
-
-    auto cfg = clang::CFG::buildCFG(fd, fd->getBody(), &this->ctx, options);
-    if (!cfg) {
-        llvm::errs() << std::format("Failed to build CFG for {}\n",
-                                    fd->getQualifiedNameAsString());
-        return false;
+    std::unique_ptr<clang::FrontendAction> create() {
+        return std::make_unique<FactExtractorAction>(interner, facts,
+                                                     point_loc);
     }
+};
 
-    cfg->print(llvm::outs(), this->ctx.getLangOpts(), true);
-
-    // todo: output facts instead of lexical lifetimes
-    for (const clang::CFGBlock *block : *cfg) {
-        const auto block_id = block->getBlockID();
-
-        for (size_t idx = 0; idx < block->size(); idx++) {
-            Point p{block_id, idx};
-            const clang::CFGElement &elem = (*block)[idx];
-
-            if (auto cfg_stmt = elem.getAs<clang::CFGStmt>()) {
-                if (const auto *ds =
-                        llvm::dyn_cast<clang::DeclStmt>(cfg_stmt->getStmt())) {
-                    for (const auto *decl : ds->decls()) {
-                        if (const auto *vd =
-                                llvm::dyn_cast<clang::VarDecl>(decl)) {
-                            BorrowKind kind = getBorrowKind(vd);
-                            if (kind != BorrowKind::None) {
-                                llvm::outs() << std::format(
-                                    "CFG Point ({}, {}): Decl {}\n", p.block,
-                                    p.statement, vd->getNameAsString());
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for (const clang::CFGBlock::AdjacentBlock &succ : block->succs()) {
-            if (succ.isReachable() && succ.getReachableBlock()) {
-                llvm::outs()
-                    << std::format("CFG Edge {} -> {}\n", block_id,
-                                   succ.getReachableBlock()->getBlockID());
-            }
-        }
+std::vector<std::string>
+getSourcePaths(const clang::tooling::CompilationDatabase &compilations) {
+    std::vector<std::string> source_paths;
+    for (const auto &cmd : compilations.getAllCompileCommands()) {
+        source_paths.push_back(cmd.Filename);
     }
 
-    llvm::outs() << "\n";
-    return true;
+    return source_paths;
 }
 
 // NOLINTBEGIN(clang-diagnostic-unused-parameter)
 ExtractedFactSet
 runExtract(const clang::tooling::CompilationDatabase &compilations) {
     // NOLINTEND(clang-diagnostic-unused-parameter)
-    ExtractedFactSet facts = {};
-    // clang::tooling::ClangTool Tool(Compilations, SourcePaths);
+    ExtractedFactSet result = {};
+    const auto source_paths = getSourcePaths(compilations);
 
-    // Tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
-    //     {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
-    //     clang::tooling::ArgumentInsertPosition::BEGIN));
-    // return Tool.run(
-    //     clang::tooling::newFrontendActionFactory<CFGAction>().get());
+    clang::tooling::ClangTool tool(compilations, source_paths);
+    tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
+        {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
+        clang::tooling::ArgumentInsertPosition::BEGIN));
 
-    return facts;
+    FactExtractorFactory factory(result.interner, result.facts,
+                                 result.point_loc);
+    tool.run(&factory);
+    return result;
 }
 
 } // namespace bchk

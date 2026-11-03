@@ -4,7 +4,7 @@ namespace bchk {
 
 // NOLINTBEGIN(clang-diagnostic-unused-parameter)
 Report collectReport(const Database &db, const Interner &interner,
-                     const std::unordered_map<Sym, SrcLoc> &point_loc,
+                     const PointSourceMap &point_loc,
                      const std::set<std::string> &disabled) {
     // NOLINTEND(clang-diagnostic-unused-parameter)
     Report report{};
@@ -17,10 +17,10 @@ Report collectReport(const Database &db, const Interner &interner,
 Report runCheck(const std::string &c_source) {
     Database db;
     Interner interner;
-    std::unordered_map<Sym, SrcLoc> locs{};
+    PointSourceMap point_loc{};
     std::set<std::string> disabled_relations{};
 
-    return collectReport(db, interner, locs, disabled_relations);
+    return collectReport(db, interner, point_loc, disabled_relations);
 }
 
 Report runCheck(Database &db, const ExtractedFactSet &fact_set,

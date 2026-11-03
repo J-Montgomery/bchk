@@ -15,23 +15,30 @@
 #include <datalog.hpp>
 
 #include "intern.hpp"
+#include "schema.hpp"
 
 namespace bchk {
 
-using Sym = uint64_t;
+using Sym = int64_t;
 using SrcLoc = clang::SourceLocation;
-
-#define EXTRACT_RELATION(X)                                                    \
-    X(init, 2)    /* (Region, Pt) */                                           \
-    X(destroy, 2) /* (Region, Pt) */
+using PointSourceMap = std::unordered_map<Sym, SrcLoc>;
 
 struct Database {
     df::datalog::Datalog query;
+#define DB_PREDICATE(name, arity) df::datalog::Predicate<Sym, arity> name;
+    BCHK_RELATIONS(DB_PREDICATE)
+#undef DB_PREDICATE
+
+    Database() {
+#define DB_REGISTER(name, arity) query.register_predicate(&name);
+        BCHK_RELATIONS(DB_REGISTER)
+#undef DB_REGISTER
+    }
 };
 
 struct Facts {
 #define COLUMN_DECL(name, arity) std::vector<std::array<Sym, arity>> name;
-    EXTRACT_RELATION(COLUMN_DECL)
+    BCHK_RELATIONS(COLUMN_DECL)
 #undef COLUMN_DECL
 };
 
@@ -42,7 +49,7 @@ struct Program {
 struct ExtractedFactSet {
     Facts facts;
     Interner interner;
-    std::unordered_map<Sym, SrcLoc> point_loc;
+    PointSourceMap point_loc;
     std::set<std::string> defined;
 };
 
