@@ -1,3 +1,6 @@
+#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_CHECKER_HPP
+#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_CHECKER_HPP
+
 #pragma once
 
 #include <array>
@@ -12,16 +15,18 @@
 
 namespace bchk {
 
-void build_rules(Database &db, Interner &interner);
-Report CollectReport(const Database &db, const Interner &interner,
+void buildRules(Database &db, Interner &interner);
+Report collectReport(const Database &db, const Interner &interner,
                      const std::unordered_map<Sym, SrcLoc> &point_loc,
                      const std::set<std::string> &disabled = {});
 
 // Unit test entry point
-Report run_check(const std::string &c_source);
+Report runCheck(const std::string &c_source);
 
 // CLI entry point
-Report run_check(Database &db, const ExtractedFactSet &fact_set,
-                 const std::set<std::string> &disabled = {});
+Report runCheck(Database &db, const ExtractedFactSet &fact_set,
+                const std::set<std::string> &disabled = {});
 
 } // namespace bchk
+
+#endif

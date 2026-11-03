@@ -1,13 +1,13 @@
-#include <clang/AST/ASTConsumer.h>
-#include <clang/AST/ASTContext.h>
-#include <clang/AST/Attr.h>
-#include <clang/AST/RecursiveASTVisitor.h>
-#include <clang/Analysis/CFG.h>
-#include <clang/Basic/SourceManager.h>
-#include <clang/Frontend/CompilerInstance.h>
-#include <clang/Frontend/FrontendAction.h>
-#include <clang/Tooling/Tooling.h>
-#include <llvm/Support/raw_ostream.h>
+// #include <clang/AST/ASTConsumer.h>
+// #include <clang/AST/ASTContext.h>
+// #include <clang/AST/Attr.h>
+// #include <clang/AST/RecursiveASTVisitor.h>
+// #include <clang/Analysis/CFG.h>
+// #include <clang/Basic/SourceManager.h>
+// #include <clang/Frontend/CompilerInstance.h>
+// #include <clang/Frontend/FrontendAction.h>
+// #include <clang/Tooling/Tooling.h>
+// #include <llvm/Support/raw_ostream.h>
 
 #include <cstdint>
 #include <format>
@@ -91,24 +91,24 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
 
         const auto &sm = ctx.getSourceManager();
 
-        clang::SourceLocation fileLoc = sm.getFileLoc(loc);
+        clang::SourceLocation file_loc = sm.getFileLoc(loc);
 
-        clang::PresumedLoc pLoc = sm.getPresumedLoc(fileLoc);
-        if (pLoc.isInvalid())
+        clang::PresumedLoc p_loc = sm.getPresumedLoc(file_loc);
+        if (p_loc.isInvalid())
             return "<invalid location>";
 
-        return std::format("{}:{}:{}", pLoc.getFilename(), pLoc.getLine(),
-                           pLoc.getColumn());
+        return std::format("{}:{}:{}", p_loc.getFilename(), p_loc.getLine(),
+                           p_loc.getColumn());
     }
 
   public:
     explicit LexicalASTVisitor(clang::ASTContext &ctx) : ctx(ctx) {}
 
-    bool TraverseCompoundStmt(clang::CompoundStmt *cs) {
+    bool traverseCompoundStmt(clang::CompoundStmt *compound_stmt) {
         scope_depth++;
         bool result =
             clang::RecursiveASTVisitor<LexicalASTVisitor>::TraverseCompoundStmt(
-                cs);
+                compound_stmt);
 
         std::erase_if(active_borrows, [this](const ActiveBorrow &b) {
             return b.scope_depth == scope_depth;
@@ -118,13 +118,13 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
         return result;
     }
 
-    bool VisitVarDecl(clang::VarDecl *vd) {
-        BorrowKind kind = getBorrowKind(vd);
+    bool visitVarDecl(clang::VarDecl *var_decl) {
+        BorrowKind kind = getBorrowKind(var_decl);
         if (kind == BorrowKind::None)
             return true;
 
-        std::string var_name = vd->getNameAsString();
-        clang::SourceLocation vd_loc = vd->getLocation();
+        std::string var_name = var_decl->getNameAsString();
+        clang::SourceLocation vd_loc = var_decl->getLocation();
 
         if (kind == BorrowKind::Owner) {
             llvm::outs() << std::format(
@@ -133,7 +133,7 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
             return true;
         }
 
-        const clang::Expr *init = vd->getInit();
+        const clang::Expr *init = var_decl->getInit();
         const clang::VarDecl *origin_vd = extractOriginVar(init);
 
         if (!origin_vd) {
@@ -162,11 +162,12 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
             }
         }
 
-        active_borrows.push_back({.borrow_var = var_name,
-                                  .origin_var = origin_name,
-                                  .kind = kind,
-                                  .scope_depth = scope_depth,
-                                  .decl_loc = vd_loc});
+        const ActiveBorrow new_borrow = {.borrow_var = var_name,
+                                         .origin_var = origin_name,
+                                         .kind = kind,
+                                         .scope_depth = scope_depth,
+                                         .decl_loc = vd_loc};
+        active_borrows.push_back(new_borrow);
 
         llvm::outs() << std::format(
             "{} [AST Scope {}] Registered Borrow: {} -> {} ({})\n",
@@ -175,7 +176,7 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
         return true;
     }
 
-    bool VisitCXXMemberCallExpr(clang::CXXMemberCallExpr *call) {
+    bool visitCxxMemberCallExpr(clang::CXXMemberCallExpr *call) {
         const clang::CXXMethodDecl *method = call->getMethodDecl();
         if (!method)
             return true;
@@ -197,7 +198,7 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
         for (const auto &b : active_borrows) {
             if (b.origin_var == origin_name) {
                 llvm::errs() << std::format(
-                    "{} [BORROW VIOLATION] Method '{}' invalidates '{}' while "
+                    "{} [BORROW VIOLATION] method '{}' invalidates '{}' while "
                     "active borrow '{}' (declared at {}) exists in scope\n",
                     formatLoc(call_loc), method->getNameAsString(), origin_name,
                     b.borrow_var, formatLoc(b.decl_loc));
@@ -207,14 +208,14 @@ class LexicalASTVisitor : public clang::RecursiveASTVisitor<LexicalASTVisitor> {
     }
 };
 
-bool CFGVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *rd) {
+bool CFGVisitor::visitCxxRecordDecl(clang::CXXRecordDecl *rd) {
     if (!rd->isCompleteDefinition())
         return true;
 
     for (const auto *field : rd->fields()) {
         BorrowKind kind = getBorrowKind(field);
         if (kind != BorrowKind::None) {
-            llvm::outs() << std::format("Record '{}' Field '{}' annotated\n",
+            llvm::outs() << std::format("Record '{}' field '{}' annotated\n",
                                         rd->getNameAsString(),
                                         field->getNameAsString());
         }
@@ -224,7 +225,7 @@ bool CFGVisitor::VisitCXXRecordDecl(clang::CXXRecordDecl *rd) {
     return true;
 }
 
-bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
+bool CFGVisitor::visitFunctionDecl(clang::FunctionDecl *fd) {
     if (!fd || !fd->hasBody())
         return true;
 
@@ -289,8 +290,10 @@ bool CFGVisitor::VisitFunctionDecl(clang::FunctionDecl *fd) {
     return true;
 }
 
+// NOLINTBEGIN(clang-diagnostic-unused-parameter)
 ExtractedFactSet
-run_extract(const clang::tooling::CompilationDatabase &compilations) {
+runExtract(const clang::tooling::CompilationDatabase &compilations) {
+    // NOLINTEND(clang-diagnostic-unused-parameter)
     ExtractedFactSet facts = {};
     // clang::tooling::ClangTool Tool(Compilations, SourcePaths);
 
@@ -300,7 +303,7 @@ run_extract(const clang::tooling::CompilationDatabase &compilations) {
     // return Tool.run(
     //     clang::tooling::newFrontendActionFactory<CFGAction>().get());
 
-    return std::move(facts);
+    return facts;
 }
 
 } // namespace bchk

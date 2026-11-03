@@ -17,53 +17,53 @@
 
 using namespace bchk;
 
-const char *BchkVersion = "0.0.1";
+const char *bchk_version = "0.0.1";
 
-static llvm::cl::OptionCategory BchkCategory("bchk options");
+static llvm::cl::OptionCategory bchk_category("bchk options");
 static llvm::cl::list<std::string>
-    CompilerFlags(llvm::cl::Sink, llvm::cl::desc("Compiler flags"));
+    compiler_flags(llvm::cl::Sink, llvm::cl::desc("Compiler flags"));
 static llvm::cl::list<std::string>
-    SourcePaths(llvm::cl::Positional, llvm::cl::desc("<input source files>"),
-                llvm::cl::OneOrMore, llvm::cl::cat(BchkCategory));
+    source_paths(llvm::cl::Positional, llvm::cl::desc("<input source files>"),
+                 llvm::cl::OneOrMore, llvm::cl::cat(bchk_category));
 llvm::cl::list<std::string>
-    SummarySpecs("summary", llvm::cl::cat(BchkCategory),
-                 llvm::cl::desc("declare a function effect"));
+    summary_specs("summary", llvm::cl::cat(bchk_category),
+                  llvm::cl::desc("declare a function effect"));
 llvm::cl::list<std::string>
-    SummaryFiles("summaries", llvm::cl::cat(BchkCategory),
-                 llvm::cl::desc("read effect declarations from a file, "
-                                "one per line"));
-llvm::cl::list<std::string> DisableClasses(
-    "bchk-disable", llvm::cl::cat(BchkCategory),
+    summary_files("summaries", llvm::cl::cat(bchk_category),
+                  llvm::cl::desc("read effect declarations from a file, "
+                                 "one per line"));
+llvm::cl::list<std::string> disable_classes(
+    "bchk-disable", llvm::cl::cat(bchk_category),
     llvm::cl::desc("suppress comma-separated errors and warnings"),
     llvm::cl::CommaSeparated);
-llvm::cl::opt<bool> Quiet("quiet", llvm::cl::cat(BchkCategory),
+llvm::cl::opt<bool> quiet("quiet", llvm::cl::cat(bchk_category),
                           llvm::cl::desc("disable summary"));
 
 int main(int argc, const char **argv) {
-    llvm::cl::HideUnrelatedOptions(BchkCategory);
-    llvm::cl::SetVersionPrinter([](llvm::raw_ostream &OS) {
-        OS << "bchk v" << BchkVersion << " (LLVM v" << LLVM_VERSION << ")\n";
+    llvm::cl::HideUnrelatedOptions(bchk_category);
+    llvm::cl::SetVersionPrinter([](llvm::raw_ostream &os) {
+        os << "bchk v" << bchk_version << " (LLVM v" << LLVM_VERSION << ")\n";
     });
 
-    const char *Overview = "C borrowchecker\n";
-    llvm::cl::ParseCommandLineOptions(argc, argv, Overview);
+    const char *overview = "C borrowchecker\n";
+    llvm::cl::ParseCommandLineOptions(argc, argv, overview);
 
-    if (CompilerFlags.empty()) {
+    if (compiler_flags.empty()) {
         llvm::errs() << "ERROR: no input files or arguments\n";
         return 1;
     }
 
-    std::vector<std::string> Args = CompilerFlags;
-    clang::tooling::FixedCompilationDatabase Compilations(".", Args);
+    std::vector<std::string> args = compiler_flags;
+    clang::tooling::FixedCompilationDatabase compilations(".", args);
 
     // TODO: Create library model
     // TODO: Load builtin decls
 
-    bchk::ExtractedFactSet facts = bchk::run_extract(Compilations);
+    bchk::ExtractedFactSet facts = bchk::runExtract(compilations);
     bchk::Database db;
-    std::set<std::string> disabled(DisableClasses.begin(),
-                                   DisableClasses.end());
-    const bchk::Report report = bchk::run_check(db, facts, disabled);
+    std::set<std::string> disabled(disable_classes.begin(),
+                                   disable_classes.end());
+    const bchk::Report report = bchk::runCheck(db, facts, disabled);
 
     // TODO: initialize db
     // TODO: Extract and sort the errors/diags
@@ -78,10 +78,11 @@ int main(int argc, const char **argv) {
                          return a.text < b.text;
                      });
 
+    // NOLINTNEXTLINE(clang-diagnostic-unused-variable)
     for (const bchk::Error &error : errors) {
         // TODO: Emit clang diags
     }
-    if (!Quiet) {
+    if (!quiet) {
         if (report.verified) {
             llvm::outs() << "verified\n";
         } else {
@@ -89,12 +90,4 @@ int main(int argc, const char **argv) {
         }
     }
     return report.verified ? 0 : 1;
-
-    // clang::tooling::ClangTool Tool(Compilations, SourcePaths);
-
-    // Tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
-    //     {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
-    //     clang::tooling::ArgumentInsertPosition::BEGIN));
-    // return Tool.run(
-    //     clang::tooling::newFrontendActionFactory<CFGAction>().get());
 }

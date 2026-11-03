@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(
     bchk
@@ -47,7 +48,19 @@ target_compile_definitions(bchk_core PUBLIC
 target_compile_options(bchk_core PRIVATE -Wall -Wextra)
 target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
+
+## Linter
+
+find_program(CLANG_TIDY NAMES clang-tidy)
+
+if(CLANG_TIDY)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY};--fix;--fix-errors")
+endif()
+
+
 ## Formatter
+
+find_program(CLANG_FORMAT NAMES clang-format)
 
 ### This would ideally use get_target_property() over the targets, but that feels
 ### more fragile to me
@@ -60,20 +73,15 @@ file(GLOB_RECURSE ALL_SOURCE_FILES
     "test/*.hpp"
 )
 
-find_program(CLANG_FORMAT 
-    NAMES clang-format-${LLVM_VERSION_MAJOR} clang-format
-    DOC "Path to clang-format executable"
-)
-
 if(CLANG_FORMAT)
-    add_custom_target(format 
+    add_custom_target(format
         COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES}
         COMMENT "Formatting..."
-        VERBATIM
-    )
+        VERBATIM)
 else()
     message(STATUS "clang-format not found. Disabling format target")
 endif()
+
 
 ## BCHK main
 add_executable(bchk src/main.cpp)

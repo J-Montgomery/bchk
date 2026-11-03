@@ -1,3 +1,6 @@
+#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_EXTRACTOR_HPP
+#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_EXTRACTOR_HPP
+
 #pragma once
 
 #include <clang/AST/ASTConsumer.h>
@@ -17,8 +20,8 @@ class CFGVisitor : public clang::RecursiveASTVisitor<CFGVisitor> {
   public:
     explicit CFGVisitor(clang::ASTContext &ctx) : ctx(ctx) {}
 
-    bool VisitCXXRecordDecl(clang::CXXRecordDecl *rd);
-    bool VisitFunctionDecl(clang::FunctionDecl *fd);
+    bool visitCxxRecordDecl(clang::CXXRecordDecl *rd);
+    bool visitFunctionDecl(clang::FunctionDecl *fd);
 
   private:
     clang::ASTContext &ctx;
@@ -27,9 +30,9 @@ class CFGVisitor : public clang::RecursiveASTVisitor<CFGVisitor> {
 class CFGConsumer : public clang::ASTConsumer {
   public:
     void HandleTranslationUnit(clang::ASTContext &ctx) override {
-        CFGVisitor Visitor(ctx);
+        CFGVisitor visitor(ctx);
 
-        Visitor.TraverseDecl(ctx.getTranslationUnitDecl());
+        visitor.TraverseDecl(ctx.getTranslationUnitDecl());
     }
 };
 
@@ -43,5 +46,7 @@ class CFGAction : public clang::ASTFrontendAction {
 };
 
 ExtractedFactSet
-run_extract(const clang::tooling::CompilationDatabase &compilations);
+runExtract(const clang::tooling::CompilationDatabase &compilations);
 } // namespace bchk
+
+#endif

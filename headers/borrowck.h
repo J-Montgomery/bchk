@@ -1,3 +1,6 @@
+#ifndef HOME_JM_SOFTWARE_CPP_BCHK_HEADERS_BORROWCK_H
+#define HOME_JM_SOFTWARE_CPP_BCHK_HEADERS_BORROWCK_H
+
 #pragma once
 
 #ifdef BCHK_ANNOTATIONS
@@ -22,5 +25,7 @@
 #define LIFETIME_BOUND
 #define INVALIDATES
 #define ASSUME_INIT
+
+#endif
 
 #endif

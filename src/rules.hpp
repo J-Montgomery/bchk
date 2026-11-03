@@ -1,3 +1,6 @@
+#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_RULES_HPP
+#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_RULES_HPP
+
 #pragma once
 
 #include <array>
@@ -58,3 +61,5 @@ struct Report {
 };
 
 } // namespace bchk
+
+#endif
