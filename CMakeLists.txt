@@ -72,6 +72,7 @@ add_library(bchk_core
                         src/extractor.cpp
                         src/checker.cpp
                         src/fact_loader.cpp
+                        src/error_rules.cpp
 )
 target_include_directories(bchk_core PUBLIC src)
 target_include_directories(bchk_core SYSTEM PUBLIC

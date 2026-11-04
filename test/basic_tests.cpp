@@ -41,4 +41,8 @@ bool relationPresent(const Report &report, const std::string &relation) {
 
 TEST(Corpus, SanityCheck) { expectSafe("int f(){ return 0; }"); }
 
+TEST(Corpus, NoBodyGeneratesUnverified) {
+    expectRejected("int f();", "err_unverified");
+}
+
 } // namespace bchk

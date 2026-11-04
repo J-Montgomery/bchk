@@ -7,7 +7,8 @@
     X(call_site, 2)                                                            \
     X(fn_entry, 2)                                                             \
     X(fn_exit, 2)                                                              \
-    X(role, 2)
+    X(role, 2)                                                                 \
+    X(any_err, 1)
 
 #define BCHK_ERR_RELATIONS(X) X(err_unverified, 2, "Could not verify")
 

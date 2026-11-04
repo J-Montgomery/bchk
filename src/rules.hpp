@@ -96,6 +96,7 @@ struct Report {
 };
 
 void loadFacts(Database &db, Facts facts);
+void buildErrorRules(Database &db, Interner &);
 } // namespace bchk
 
 #endif

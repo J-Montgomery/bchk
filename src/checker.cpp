@@ -71,7 +71,7 @@ Report collectReport(const Database &db, const Interner &interner,
 }
 
 void buildRules(Database &db, Interner &interner) {
-    // build_error_rules(db, interner);
+    buildErrorRules(db, interner);
 }
 
 bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
