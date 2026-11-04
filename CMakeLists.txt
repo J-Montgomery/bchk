@@ -34,25 +34,6 @@ include_directories(${LLVM_INCLUDE_DIRS} ${CLANG_INCLUDE_DIRS})
 ## Dartfrog
 find_package(dartfrog REQUIRED)
 
-## BCHK core
-add_library(bchk_core
-                        src/extractor.cpp
-                        src/checker.cpp
-                        src/fact_loader.cpp
-)
-target_include_directories(bchk_core PUBLIC src)
-target_include_directories(bchk_core SYSTEM PUBLIC
-                                     ${dartfrog_INCLUDE_DIRS}
-                                     ${LLVM_INCLUDE_DIRS}
-                                     ${CLANG_INCLUDE_DIRS})
-target_compile_definitions(bchk_core PRIVATE ${LLVM_DEFINITIONS}
-                           BCHK_INCLUDE_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/headers/bchk2.h")
-target_compile_definitions(bchk_core PUBLIC
-                           BCHK_SYSTEM_SUMMARIES="${CMAKE_CURRENT_SOURCE_DIR}/summary/std.summaries")
-target_compile_options(bchk_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
-
-
 ## Linter
 
 find_program(CLANG_TIDY NAMES clang-tidy)
@@ -86,6 +67,23 @@ else()
     message(STATUS "clang-format not found. Disabling format target")
 endif()
 
+## BCHK core
+add_library(bchk_core
+                        src/extractor.cpp
+                        src/checker.cpp
+                        src/fact_loader.cpp
+)
+target_include_directories(bchk_core PUBLIC src)
+target_include_directories(bchk_core SYSTEM PUBLIC
+                                     ${dartfrog_INCLUDE_DIRS}
+                                     ${LLVM_INCLUDE_DIRS}
+                                     ${CLANG_INCLUDE_DIRS})
+target_compile_definitions(bchk_core PRIVATE ${LLVM_DEFINITIONS}
+                           BCHK_INCLUDE_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/headers/bchk2.h")
+target_compile_definitions(bchk_core PUBLIC
+                           BCHK_SYSTEM_SUMMARIES="${CMAKE_CURRENT_SOURCE_DIR}/summary/std.summaries")
+target_compile_options(bchk_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
 ## BCHK main
 add_executable(bchk src/main.cpp)
