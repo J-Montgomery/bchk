@@ -210,11 +210,11 @@ class FactExtractorVisitor
             if (const auto *annotated_attr =
                     clang::dyn_cast<clang::AnnotateAttr>(attr)) {
                 std::string tag = annotated_attr->getAnnotation().str();
-                if (tag == "bchk_owner")
+                if (tag == "bc_owner")
                     role = role::owner;
-                else if (tag == "bchk_borrow")
+                else if (tag == "bc_borrow")
                     role = role::borrow;
-                else if (tag == "bchk_mut_borrow")
+                else if (tag == "bc_mut_borrow")
                     role = role::mut_borrow;
             }
         }
