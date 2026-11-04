@@ -64,7 +64,7 @@ class FactExtractorVisitor
                     // TODO: We don't need to error if we can see a function
                     // summary
                     llvm::errs() << "ERROR: Function " << fd->getNameAsString()
-                                 << "lacks a body\n";
+                                 << " lacks a body\n";
 
                     clang::SourceLocation loc = fd->getLocation();
                     Sym err_point = control.point("decl-without-body:" +
@@ -113,7 +113,7 @@ class FactExtractorVisitor
                 // ever supports C++
                 if (type->isPointerType()) {
                     llvm::errs() << "ERROR: param " << param->getNameAsString()
-                                 << "is an unannotated pointer\n";
+                                 << " is an unannotated pointer\n";
                 }
             }
         }
