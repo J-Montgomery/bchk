@@ -18,21 +18,21 @@ bool relationPresent(const Report &report, const std::string &relation) {
 }
 
 [[maybe_unused]] void expectSafe(const std::string &source) {
-    const Report report = runCheck(source);
+    const Report report = analyzeSrcString(source);
     EXPECT_TRUE(report.verified);
     EXPECT_TRUE(report.errors.empty());
 }
 
 [[maybe_unused]] void expectRejected(const std::string &source,
                                      const std::string &relation) {
-    const Report report = runCheck(source);
+    const Report report = analyzeSrcString(source);
     EXPECT_FALSE(report.verified);
     EXPECT_TRUE(relationPresent(report, relation));
 }
 
 [[maybe_unused]] void expectWarned(const std::string &source,
                                    const std::string &relation) {
-    const Report report = runCheck(source);
+    const Report report = analyzeSrcString(source);
     EXPECT_TRUE(report.verified);
     EXPECT_TRUE(relationPresent(report, relation));
 }

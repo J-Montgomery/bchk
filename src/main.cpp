@@ -63,7 +63,7 @@ int main(int argc, const char **argv) {
     bchk::Database db;
     std::set<std::string> disabled(disable_classes.begin(),
                                    disable_classes.end());
-    const bchk::Report report = bchk::runCheck(db, facts, disabled);
+    const bchk::Report report = bchk::analyzeFacts(db, facts, disabled);
 
     // TODO: initialize db
     // TODO: Extract and sort the errors/diags

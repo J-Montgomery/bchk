@@ -95,6 +95,7 @@ struct Report {
     std::vector<Error> errors;
 };
 
+void loadFacts(Database &db, Facts facts);
 } // namespace bchk
 
 #endif

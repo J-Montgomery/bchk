@@ -1,6 +1,10 @@
 #include <format>
 
+#include <clang/Tooling/CompilationDatabase.h>
+#include <clang/Tooling/Tooling.h>
+
 #include "checker.hpp"
+#include "extractor.hpp"
 #include "rules.hpp"
 
 namespace bchk {
@@ -66,23 +70,32 @@ Report collectReport(const Database &db, const Interner &interner,
     return report;
 }
 
+void buildRules(Database &db, Interner &interner) {
+    // build_error_rules(db, interner);
+}
+
+bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
+                          const std::set<std::string> &disabled) {
+    loadFacts(db, std::move(fact_set.facts));
+    buildRules(db, fact_set.interner);
+    db.query.solve();
+
+    return collectReport(db, fact_set.interner, fact_set.point_loc, disabled);
+}
+
 // NOLINTNEXTLINE(clang-diagnostic-unused-parameter)
-Report runCheck(const std::string &c_source) {
+Report analyzeSrcString(const std::string &c_source) {
     Database db;
     Interner interner;
     PointSourceMap point_loc{};
     std::set<std::string> disabled_relations{};
 
-    return collectReport(db, interner, point_loc, disabled_relations);
-}
+    clang::tooling::FixedCompilationDatabase compilations(".", {});
+    clang::tooling::ClangTool tool(compilations, {"input.c"});
+    tool.mapVirtualFile("input.c", c_source);
 
-Report runCheck(Database &db, const ExtractedFactSet &fact_set,
-                const std::set<std::string> &disabled) {
-    // load_facts(db, std::move(fact_set.facts));
-    // build_rules(db, fact_set.interner);
-    // db.program.solve();
-
-    return collectReport(db, fact_set.interner, fact_set.point_loc, disabled);
+    bchk::ExtractedFactSet facts = bchk::runExtract(compilations);
+    return analyzeFacts(db, facts, {});
 }
 
 } // namespace bchk

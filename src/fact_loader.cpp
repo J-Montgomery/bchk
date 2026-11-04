@@ -10,7 +10,7 @@ namespace bchk {
 
 template <size_t N>
 void loadPred(df::datalog::Predicate<Sym, N> &predicate,
-               std::vector<std::array<Sym, N>> facts) {
+              std::vector<std::array<Sym, N>> facts) {
     predicate.insert(
         df::Relation<std::array<Sym, N>>::from_vec(std::move(facts)));
 }
