@@ -20,11 +20,6 @@ using namespace bchk;
 const char *bchk_version = "0.0.1";
 
 static llvm::cl::OptionCategory bchk_category("bchk options");
-static llvm::cl::list<std::string>
-    compiler_flags(llvm::cl::Sink, llvm::cl::desc("Compiler flags"));
-static llvm::cl::list<std::string>
-    source_paths(llvm::cl::Positional, llvm::cl::desc("<input source files>"),
-                 llvm::cl::OneOrMore, llvm::cl::cat(bchk_category));
 llvm::cl::list<std::string>
     summary_specs("summary", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("declare a function effect"));
@@ -46,20 +41,21 @@ int main(int argc, const char **argv) {
     });
 
     const char *overview = "C borrowchecker\n";
-    llvm::cl::ParseCommandLineOptions(argc, argv, overview);
-
-    if (compiler_flags.empty()) {
-        llvm::errs() << "ERROR: no input files or arguments\n";
+    auto expected_parser = clang::tooling::CommonOptionsParser::create(
+        argc, argv, bchk_category, llvm::cl::OneOrMore, overview);
+    if (!expected_parser) {
+        llvm::errs() << expected_parser.takeError();
         return 1;
     }
+    clang::tooling::CommonOptionsParser &options_parser = expected_parser.get();
 
-    std::vector<std::string> args = compiler_flags;
-    clang::tooling::FixedCompilationDatabase compilations(".", args);
+    clang::tooling::ClangTool tool(options_parser.getCompilations(),
+                                   options_parser.getSourcePathList());
 
     // TODO: Create library model
     // TODO: Load builtin decls
 
-    bchk::ExtractedFactSet facts = bchk::runExtract(compilations);
+    bchk::ExtractedFactSet facts = bchk::runExtract(tool);
     bchk::Database db;
     std::set<std::string> disabled(disable_classes.begin(),
                                    disable_classes.end());

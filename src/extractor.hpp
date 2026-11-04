@@ -45,8 +45,7 @@ class CFGAction : public clang::ASTFrontendAction {
     }
 };
 
-ExtractedFactSet
-runExtract(const clang::tooling::CompilationDatabase &compilations);
+ExtractedFactSet runExtract(clang::tooling::ClangTool &tool);
 } // namespace bchk
 
 #endif

@@ -381,24 +381,11 @@ class FactExtractorFactory final
     }
 };
 
-std::vector<std::string>
-getSourcePaths(const clang::tooling::CompilationDatabase &compilations) {
-    std::vector<std::string> source_paths;
-    for (const auto &cmd : compilations.getAllCompileCommands()) {
-        source_paths.push_back(cmd.Filename);
-    }
-
-    return source_paths;
-}
-
 // NOLINTBEGIN(clang-diagnostic-unused-parameter)
-ExtractedFactSet
-runExtract(const clang::tooling::CompilationDatabase &compilations) {
+ExtractedFactSet runExtract(clang::tooling::ClangTool &tool) {
     // NOLINTEND(clang-diagnostic-unused-parameter)
     ExtractedFactSet result = {};
-    const auto source_paths = getSourcePaths(compilations);
 
-    clang::tooling::ClangTool tool(compilations, source_paths);
     tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
         {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
         clang::tooling::ArgumentInsertPosition::BEGIN));

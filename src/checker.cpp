@@ -94,7 +94,7 @@ Report analyzeSrcString(const std::string &c_source) {
     clang::tooling::ClangTool tool(compilations, {"input.c"});
     tool.mapVirtualFile("input.c", c_source);
 
-    bchk::ExtractedFactSet facts = bchk::runExtract(compilations);
+    bchk::ExtractedFactSet facts = bchk::runExtract(tool);
     return analyzeFacts(db, facts, {});
 }
 
