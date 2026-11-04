@@ -5,6 +5,7 @@
 #include <clang/AST/Decl.h>
 #include <clang/AST/Expr.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/Stmt.h>
 #include <clang/Analysis/CFG.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Frontend/CompilerInstance.h>
@@ -26,32 +27,8 @@
 
 namespace bchk {
 
-// enum class BorrowKind { None, Owner, Borrow, MutBorrow };
-
-// static BorrowKind getBorrowKind(const clang::Decl *decl) {
-//     if (!decl)
-//         return BorrowKind::None;
-//     for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-//         llvm::StringRef ann = attr->getAnnotation();
-//         if (ann == "bc_owner")
-//             return BorrowKind::Owner;
-//         if (ann == "bc_borrow")
-//             return BorrowKind::Borrow;
-//         if (ann == "bc_mut_borrow")
-//             return BorrowKind::MutBorrow;
-//     }
-//     return BorrowKind::None;
-// }
-
-// static bool hasAnnotation(const clang::Decl *decl, llvm::StringRef target) {
-//     if (!decl)
-//         return false;
-//     for (const auto *attr : decl->specific_attrs<clang::AnnotateAttr>()) {
-//         if (attr->getAnnotation() == target)
-//             return true;
-//     }
-//     return false;
-// }
+using clang::FunctionDecl;
+using clang::Stmt;
 
 class FactExtractorVisitor
     : public clang::RecursiveASTVisitor<FactExtractorVisitor> {
@@ -67,9 +44,10 @@ class FactExtractorVisitor
     ControlBuilder control;
     PlaceBuilder places;
 
-    std::unordered_map<const clang::Stmt *, Sym> stmt_pt;
-    std::unordered_map<const clang::ValueDecl *, Sym> var_pt;
+    std::unordered_map<const Stmt *, Sym> stmt_pt;
+    std::unordered_map<const clang::ValueDecl *, Sym> var_places;
     std::unordered_map<Sym, Sym> current_alloc;
+    std::unordered_map<Sym, std::string> place_role;
 
   public:
     FactExtractorVisitor(clang::ASTContext &context, Interner &interner,
@@ -77,6 +55,278 @@ class FactExtractorVisitor
         : context(context), interner(interner), facts(facts),
           point_loc(point_loc), control(interner, facts),
           places(interner, facts) {}
+
+    bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *tu) {
+        for (const clang::Decl *decl : tu->decls()) {
+            if (const FunctionDecl *fd = clang::dyn_cast<FunctionDecl>(decl)) {
+                if (fd->doesThisDeclarationHaveABody()) {
+                    extract_function(fd);
+                } else {
+                    // TODO: We don't need to error if we can see a function
+                    // summary
+                    llvm::errs() << "ERROR: Function " << fd->getNameAsString()
+                                 << "lacks a body\n";
+
+                    clang::SourceLocation loc = fd->getLocation();
+                    Sym err_point = control.point("decl-without-body:" +
+                                                  fd->getNameAsString());
+                    record_point_loc(err_point, loc);
+
+                    facts.err_unverified.push_back(
+                        {err_point, interner.intern("Function lacks a body")});
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool VisitCallExpr(clang::CallExpr *ce) {
+        if (current_point >= 0) {
+            std::string name = callee_name(ce);
+            control.call_site(current_point, name);
+        }
+
+        return true;
+    }
+
+  private:
+    void extract_function(const FunctionDecl *fd) {
+        current_fn = fd->getNameAsString();
+        const Sym entry = control.point("entry:" + current_fn);
+        const Sym exit = control.point("exit:" + current_fn);
+        fn_exit = exit;
+
+        record_point_loc(entry, fd->getBeginLoc());
+        record_point_loc(exit, fd->getEndLoc());
+        control.begin_fn(current_fn, entry, exit);
+
+        // Gather the param annotations
+        for (const clang::ParmVarDecl *param : fd->parameters()) {
+            const Sym param_place = place_for_var(param);
+            const std::string role = role_of(param);
+            if (!role.empty()) {
+                places.role(param_place, role);
+                place_role[param_place] = role;
+            } else {
+                clang::QualType type = param->getType();
+                // TODO: isPointerType doesn't handle member pointers if this
+                // ever supports C++
+                if (type->isPointerType()) {
+                    llvm::errs() << "ERROR: param " << param->getNameAsString()
+                                 << "is an unannotated pointer\n";
+                }
+            }
+        }
+
+        emit_cfg_edges(fd, entry, exit);
+        if (fd->getBody()) {
+            TraverseStmt(fd->getBody());
+        } else {
+            clang::SourceLocation loc = fd->getLocation();
+            log_console_error("function declaration without a body", loc);
+        }
+    }
+
+    void emit_cfg_edges(const FunctionDecl *fd, Sym entry, Sym exit) {
+        clang::CFG::BuildOptions opts;
+        opts.AddLifetime = true;
+        opts.AddScopes = true;
+
+        std::unique_ptr<clang::CFG> cfg =
+            clang::CFG::buildCFG(fd, fd->getBody(), &context, opts);
+        if (!cfg) {
+            clang::SourceLocation loc = fd->getLocation();
+            log_console_error("couldn't build function cfg", loc);
+            return;
+        }
+
+        std::unordered_map<const clang::CFGBlock *, Sym> head;
+        std::unordered_map<const clang::CFGBlock *, Sym> tail;
+
+        head[&cfg->getEntry()] = entry;
+        tail[&cfg->getEntry()] = entry;
+        head[&cfg->getExit()] = exit;
+        tail[&cfg->getExit()] = exit;
+
+        for (const clang::CFGBlock *block : *cfg) {
+            if (block == &cfg->getEntry() || block == &cfg->getExit()) {
+                continue;
+            }
+
+            Sym first = -1;
+            Sym last = -1;
+
+            if (block->getLabel() != nullptr) {
+                first = mint_point(block->getLabel());
+                last = first;
+            }
+
+            for (clang::CFGBlock::const_iterator it = block->begin();
+                 it != block->end(); it++) {
+                if (const std::optional<clang::CFGStmt> stmt =
+                        it->getAs<clang::CFGStmt>()) {
+                    const Sym p = mint_point(stmt->getStmt());
+                    if (first < 0)
+                        first = p;
+                    if (last >= 0)
+                        facts.cfg_edge.push_back({last, p});
+
+                    last = p;
+                    current_point = p;
+                }
+                // TODO: handle failure to get CFG stmt?
+            }
+
+            if (const Stmt *term = block->getTerminatorStmt()) {
+                const Sym p = mint_point(term);
+                if (first < 0)
+                    first = p;
+                if (last >= 0)
+                    facts.cfg_edge.push_back({last, p});
+
+                last = p;
+            }
+
+            if (first < 0) {
+                first = last = control.point("block");
+            }
+            head[block] = first;
+            tail[block] = last;
+        }
+
+        for (const clang::CFGBlock *block : *cfg) {
+            for (auto succ_it = block->succ_begin();
+                 succ_it != block->succ_end(); succ_it++) {
+                if (*succ_it != nullptr) {
+                    facts.cfg_edge.push_back({tail[block], head[*succ_it]});
+                }
+            }
+        }
+    }
+
+    std::string role_of(const clang::Decl *decl) {
+        std::string role;
+        for (const clang::Attr *attr : decl->attrs()) {
+            if (const auto *annotated_attr =
+                    clang::dyn_cast<clang::AnnotateAttr>(attr)) {
+                std::string tag = annotated_attr->getAnnotation().str();
+                if (tag == "bchk_owner")
+                    role = role::owner;
+                else if (tag == "bchk_borrow")
+                    role = role::borrow;
+                else if (tag == "bchk_mut_borrow")
+                    role = role::mut_borrow;
+            }
+        }
+        return role;
+    }
+
+    Sym place_for_var(const clang::ValueDecl *var_decl) {
+        auto found = var_places.find(var_decl);
+        if (found != var_places.end()) {
+            return found->second;
+        }
+
+        Sym place;
+        if (const clang::ParmVarDecl *parm =
+                clang::dyn_cast<clang::ParmVarDecl>(var_decl)) {
+            place =
+                interner.intern("param:" + current_fn + "#" +
+                                std::to_string(parm->getFunctionScopeIndex()));
+            interner.set_display(place, var_decl->getNameAsString());
+        } else {
+            place = places.base(var_decl->getNameAsString());
+        }
+
+        var_places[var_decl] = place;
+        return place;
+    }
+
+    std::string callee_name(const clang::CallExpr *ce) const {
+        if (const FunctionDecl *fd = ce->getDirectCallee()) {
+            return fd->getNameAsString();
+        }
+        auto callee = ce->getCallee();
+        return callee ? src(callee) : "?";
+    }
+
+    std::string src(const Stmt *stmt) const {
+        const clang::SourceRange range = stmt->getSourceRange();
+        if (!range.isValid()) {
+            return "?";
+        }
+        return clang::Lexer::getSourceText(
+                   clang::CharSourceRange::getTokenRange(range),
+                   context.getSourceManager(), clang::LangOptions())
+            .str();
+    }
+
+    Sym mint_point(const Stmt *stmt) {
+        const Sym p = control.point(tag(stmt));
+        stmt_pt[stmt] = p;
+        record_point_loc(p, stmt->getBeginLoc());
+        return p;
+    }
+
+    void record_point_loc(Sym point, clang::SourceLocation loc) {
+        if (loc.isInvalid())
+            return;
+        const clang::PresumedLoc pres =
+            context.getSourceManager().getPresumedLoc(loc);
+        if (pres.isValid()) {
+            point_loc[point] = {pres.getFilename(), pres.getLine(),
+                                pres.getColumn()};
+        }
+    }
+
+    void log_console_error(std::string error_str, clang::SourceLocation loc) {
+        if (loc.isInvalid()) {
+            llvm::errs() << "ERROR: " << error_str << " (unknown location)\n";
+            return;
+        }
+
+        const clang::PresumedLoc pres =
+            context.getSourceManager().getPresumedLoc(loc);
+        if (!pres.isValid()) {
+            llvm::errs() << "ERROR: " << error_str << " (invalid location)\n";
+            return;
+        }
+
+        std::string location_str = std::format(
+            "{}:{}:{}", pres.getFilename(), pres.getLine(), pres.getColumn());
+        llvm::errs() << "ERROR: " << error_str << " at " << location_str
+                     << "\n";
+    }
+
+    const char *tag(const Stmt *stmt) {
+        switch (stmt->getStmtClass()) {
+        case Stmt::IfStmtClass:
+            return "if";
+        case Stmt::WhileStmtClass:
+            return "while";
+        case Stmt::ForStmtClass:
+            return "for";
+        case Stmt::SwitchStmtClass:
+            return "switch";
+        case Stmt::ReturnStmtClass:
+            return "return";
+        case Stmt::DeclStmtClass:
+            return "decl";
+        case Stmt::CallExprClass:
+            return "call";
+        case Stmt::BinaryOperatorClass:
+            return "assign";
+        case Stmt::CaseStmtClass:
+            return "case";
+        case Stmt::DefaultStmtClass:
+            return "default";
+        case Stmt::NullStmtClass:
+            return "null";
+        default:
+            return "stmt";
+        }
+    }
 };
 
 class FactExtractorConsumer final : public clang::ASTConsumer {
