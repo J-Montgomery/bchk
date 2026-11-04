@@ -40,7 +40,6 @@ class FactExtractorVisitor
     std::string current_fn;
     Sym fn_exit = -1;
     Sym current_point = -1;
-    int alloc_seq = 0;
     ControlBuilder control;
     PlaceBuilder places;
 

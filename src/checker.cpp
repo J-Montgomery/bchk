@@ -6,10 +6,10 @@
 namespace bchk {
 
 template <size_t N>
-void collect_errors(Report &report, const std::string &rel_name,
-                    const Interner &interner,
-                    const std::vector<std::array<Sym, N>> &facts,
-                    const PointSourceMap &point_loc) {
+void collectErrors(Report &report, const std::string &rel_name,
+                   const Interner &interner,
+                   const std::vector<std::array<Sym, N>> &facts,
+                   const PointSourceMap &point_loc) {
     for (const std::array<Sym, N> &f : facts) {
         Error err;
 
@@ -51,8 +51,7 @@ Report collectReport(const Database &db, const Interner &interner,
         const bool enabled =                                                   \
             verify_err || disabled.find(#name) == disabled.end();              \
         if (enabled) {                                                         \
-            collect_errors(report, #name, interner, db.name.peek(),            \
-                           point_loc);                                         \
+            collectErrors(report, #name, interner, db.name.peek(), point_loc); \
             if (!db.name.peek().empty()) {                                     \
                 report.verified = false;                                       \
             }                                                                  \
