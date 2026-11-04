@@ -10,6 +10,7 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -misc-unused-parameters,
   -misc-use-anonymous-namespace,
+  -misc-include-cleaner,
   readability-identifier-naming
 
 CheckOptions:

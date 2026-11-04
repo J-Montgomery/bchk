@@ -1,4 +1,3 @@
-#include <cstddef>
 #include <format>
 
 #include "checker.hpp"

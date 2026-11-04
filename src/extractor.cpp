@@ -60,7 +60,7 @@ class FactExtractorVisitor
         for (const clang::Decl *decl : tu->decls()) {
             if (const FunctionDecl *fd = clang::dyn_cast<FunctionDecl>(decl)) {
                 if (fd->doesThisDeclarationHaveABody()) {
-                    extract_function(fd);
+                    extractFunction(fd);
                 } else {
                     // TODO: We don't need to error if we can see a function
                     // summary
@@ -70,7 +70,7 @@ class FactExtractorVisitor
                     clang::SourceLocation loc = fd->getLocation();
                     Sym err_point = control.point("decl-without-body:" +
                                                   fd->getNameAsString());
-                    record_point_loc(err_point, loc);
+                    recordPointLoc(err_point, loc);
 
                     facts.err_unverified.push_back(
                         {err_point, interner.intern("Function lacks a body")});
@@ -83,7 +83,7 @@ class FactExtractorVisitor
 
     bool VisitCallExpr(clang::CallExpr *ce) {
         if (current_point >= 0) {
-            std::string name = callee_name(ce);
+            std::string name = calleeName(ce);
             control.call_site(current_point, name);
         }
 
@@ -91,20 +91,20 @@ class FactExtractorVisitor
     }
 
   private:
-    void extract_function(const FunctionDecl *fd) {
+    void extractFunction(const FunctionDecl *fd) {
         current_fn = fd->getNameAsString();
         const Sym entry = control.point("entry:" + current_fn);
         const Sym exit = control.point("exit:" + current_fn);
         fn_exit = exit;
 
-        record_point_loc(entry, fd->getBeginLoc());
-        record_point_loc(exit, fd->getEndLoc());
+        recordPointLoc(entry, fd->getBeginLoc());
+        recordPointLoc(exit, fd->getEndLoc());
         control.begin_fn(current_fn, entry, exit);
 
         // Gather the param annotations
         for (const clang::ParmVarDecl *param : fd->parameters()) {
-            const Sym param_place = place_for_var(param);
-            const std::string role = role_of(param);
+            const Sym param_place = placeForVar(param);
+            const std::string role = roleOf(param);
             if (!role.empty()) {
                 places.role(param_place, role);
                 place_role[param_place] = role;
@@ -119,16 +119,16 @@ class FactExtractorVisitor
             }
         }
 
-        emit_cfg_edges(fd, entry, exit);
+        emitCfgEdges(fd, entry, exit);
         if (fd->getBody()) {
             TraverseStmt(fd->getBody());
         } else {
             clang::SourceLocation loc = fd->getLocation();
-            log_console_error("function declaration without a body", loc);
+            logConsoleError("function declaration without a body", loc);
         }
     }
 
-    void emit_cfg_edges(const FunctionDecl *fd, Sym entry, Sym exit) {
+    void emitCfgEdges(const FunctionDecl *fd, Sym entry, Sym exit) {
         clang::CFG::BuildOptions opts;
         opts.AddLifetime = true;
         opts.AddScopes = true;
@@ -137,7 +137,7 @@ class FactExtractorVisitor
             clang::CFG::buildCFG(fd, fd->getBody(), &context, opts);
         if (!cfg) {
             clang::SourceLocation loc = fd->getLocation();
-            log_console_error("couldn't build function cfg", loc);
+            logConsoleError("couldn't build function cfg", loc);
             return;
         }
 
@@ -158,7 +158,7 @@ class FactExtractorVisitor
             Sym last = -1;
 
             if (block->getLabel() != nullptr) {
-                first = mint_point(block->getLabel());
+                first = mintPoint(block->getLabel());
                 last = first;
             }
 
@@ -166,7 +166,7 @@ class FactExtractorVisitor
                  it != block->end(); it++) {
                 if (const std::optional<clang::CFGStmt> stmt =
                         it->getAs<clang::CFGStmt>()) {
-                    const Sym p = mint_point(stmt->getStmt());
+                    const Sym p = mintPoint(stmt->getStmt());
                     if (first < 0)
                         first = p;
                     if (last >= 0)
@@ -179,7 +179,7 @@ class FactExtractorVisitor
             }
 
             if (const Stmt *term = block->getTerminatorStmt()) {
-                const Sym p = mint_point(term);
+                const Sym p = mintPoint(term);
                 if (first < 0)
                     first = p;
                 if (last >= 0)
@@ -196,7 +196,7 @@ class FactExtractorVisitor
         }
 
         for (const clang::CFGBlock *block : *cfg) {
-            for (auto succ_it = block->succ_begin();
+            for (const auto *succ_it = block->succ_begin();
                  succ_it != block->succ_end(); succ_it++) {
                 if (*succ_it != nullptr) {
                     facts.cfg_edge.push_back({tail[block], head[*succ_it]});
@@ -205,7 +205,7 @@ class FactExtractorVisitor
         }
     }
 
-    std::string role_of(const clang::Decl *decl) {
+    std::string roleOf(const clang::Decl *decl) {
         std::string role;
         for (const clang::Attr *attr : decl->attrs()) {
             if (const auto *annotated_attr =
@@ -222,7 +222,7 @@ class FactExtractorVisitor
         return role;
     }
 
-    Sym place_for_var(const clang::ValueDecl *var_decl) {
+    Sym placeForVar(const clang::ValueDecl *var_decl) {
         auto found = var_places.find(var_decl);
         if (found != var_places.end()) {
             return found->second;
@@ -243,11 +243,11 @@ class FactExtractorVisitor
         return place;
     }
 
-    std::string callee_name(const clang::CallExpr *ce) const {
+    std::string calleeName(const clang::CallExpr *ce) const {
         if (const FunctionDecl *fd = ce->getDirectCallee()) {
             return fd->getNameAsString();
         }
-        auto callee = ce->getCallee();
+        const auto *callee = ce->getCallee();
         return callee ? src(callee) : "?";
     }
 
@@ -262,14 +262,14 @@ class FactExtractorVisitor
             .str();
     }
 
-    Sym mint_point(const Stmt *stmt) {
+    Sym mintPoint(const Stmt *stmt) {
         const Sym p = control.point(tag(stmt));
         stmt_pt[stmt] = p;
-        record_point_loc(p, stmt->getBeginLoc());
+        recordPointLoc(p, stmt->getBeginLoc());
         return p;
     }
 
-    void record_point_loc(Sym point, clang::SourceLocation loc) {
+    void recordPointLoc(Sym point, clang::SourceLocation loc) {
         if (loc.isInvalid())
             return;
         const clang::PresumedLoc pres =
@@ -280,7 +280,7 @@ class FactExtractorVisitor
         }
     }
 
-    void log_console_error(std::string error_str, clang::SourceLocation loc) {
+    void logConsoleError(std::string error_str, clang::SourceLocation loc) {
         if (loc.isInvalid()) {
             llvm::errs() << "ERROR: " << error_str << " (unknown location)\n";
             return;
