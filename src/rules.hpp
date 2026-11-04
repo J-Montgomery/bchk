@@ -60,6 +60,7 @@ struct Database {
     }
 };
 
+constexpr size_t max_arity = 4;
 struct Facts {
 #define COLUMN_DECL(name, arity) std::vector<std::array<Sym, arity>> name;
     BCHK_RELATIONS(COLUMN_DECL)
@@ -83,7 +84,7 @@ struct ExtractedFactSet {
 struct Error {
     std::string relation;
     size_t arity;
-    std::array<Sym, 4> columns;
+    std::array<Sym, max_arity> columns;
     std::string text;
     SrcLoc loc;
     bool warning;
