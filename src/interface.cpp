@@ -1,14 +1,22 @@
+#include <array>
+#include <cstddef>
 #include <format>
+#include <set>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
 #include "extractor.hpp"
 #include "interface.hpp"
+#include "intern.hpp"
 #include "rules.hpp"
 
 namespace bchk {
 
+namespace {
 template <size_t N>
 void collectErrors(Report &report, const std::string &rel_name,
                    const Interner &interner,
@@ -73,6 +81,8 @@ Report collectReport(const Database &db, const Interner &interner,
 void buildRules(Database &db, Interner &interner) {
     buildErrorRules(db, interner);
 }
+
+} // anonymous namespace
 
 bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
                           const std::set<std::string> &disabled) {
