@@ -41,7 +41,7 @@ void collectErrors(Report &report, const std::string &rel_name,
         }
         err.text = std::format("{}({})", rel_name, args);
 
-        constexpr size_t place_idx = 1;
+        constexpr size_t place_idx = 0;
         const auto found = point_loc.find(f[place_idx]);
         if (found != point_loc.end()) {
             err.loc = found->second;

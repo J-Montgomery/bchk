@@ -1,7 +1,15 @@
+#include <clang/Basic/Diagnostic.h>
+#include <clang/Basic/DiagnosticIDs.h>
+#include <clang/Basic/DiagnosticOptions.h>
+#include <clang/Basic/FileManager.h>
+#include <clang/Basic/LangOptions.h>
+#include <clang/Basic/SourceManager.h>
+#include <clang/Frontend/TextDiagnostic.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
+#include <llvm/Support/raw_os_ostream.h>
 #include <llvm/Support/raw_ostream.h>
 
 // #include <filesystem>
@@ -23,15 +31,69 @@ llvm::cl::list<std::string>
     summary_specs("summary", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("declare a function effect"));
 llvm::cl::list<std::string>
-    summary_files("summaries", llvm::cl::cat(bchk_category),
-                  llvm::cl::desc("read effect declarations from a file, "
-                                 "one per line"));
+    summary_files("summary-file", llvm::cl::cat(bchk_category),
+                  llvm::cl::desc("path to a summary file"));
 llvm::cl::list<std::string> disable_classes(
     "bchk-disable", llvm::cl::cat(bchk_category),
     llvm::cl::desc("suppress comma-separated errors and warnings"),
     llvm::cl::CommaSeparated);
 llvm::cl::opt<bool> quiet("quiet", llvm::cl::cat(bchk_category),
                           llvm::cl::desc("disable summary"));
+
+class DiagnosticMsg {
+  public:
+    DiagnosticMsg()
+        : os(llvm::errs()), diag_ids(new clang::DiagnosticIDs()),
+          diag_opts(new clang::DiagnosticOptions()),
+          diags(diag_ids, diag_opts, new clang::IgnoringDiagConsumer()),
+          file_manager(fs_opts), src_manager(diags, file_manager) {
+        diag_opts->ShowColors = true;
+        diag_opts->ShowLocation = true;
+    }
+    void emit(const SrcLoc &loc, clang::DiagnosticsEngine::Level level,
+              llvm::StringRef text) {
+        if (!loc.valid()) {
+            llvm::errs() << "ERROR: " << text << "\n";
+            return;
+        }
+
+        llvm::Expected<clang::FileEntryRef> file_entry =
+            file_manager.getFileRef(loc.file, true);
+        if (!file_entry) {
+            llvm::errs() << "ERROR: cannot open " << loc.file
+                         << " to show source context\n";
+            return;
+        }
+        clang::FileID fid = src_manager.translateFile(*file_entry);
+        if (fid.isInvalid()) {
+            fid = src_manager.createFileID(*file_entry, clang::SourceLocation(),
+                                           clang::SrcMgr::C_User);
+        }
+
+        clang::SourceLocation src_loc =
+            src_manager.translateLineCol(fid, loc.line, loc.col);
+        if (src_loc.isInvalid()) {
+            llvm::errs() << "ERROR: " << loc.file << ":" << loc.line << ":"
+                         << loc.col << ": " << text << "\n";
+            return;
+        }
+
+        clang::TextDiagnostic text_diags(os, lang_opts, diag_opts.get());
+        text_diags.emitDiagnostic(clang::FullSourceLoc(src_loc, src_manager),
+                                  level, text, {}, {});
+        os.flush();
+    }
+
+  private:
+    llvm::raw_ostream &os;
+    clang::LangOptions lang_opts;
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs> diag_ids;
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> diag_opts;
+    clang::DiagnosticsEngine diags;
+    clang::FileSystemOptions fs_opts;
+    clang::FileManager file_manager;
+    clang::SourceManager src_manager;
+};
 
 int main(int argc, const char **argv) {
     llvm::cl::HideUnrelatedOptions(bchk_category);
@@ -73,15 +135,18 @@ int main(int argc, const char **argv) {
                          return a.text < b.text;
                      });
 
-    // NOLINTNEXTLINE(clang-diagnostic-unused-variable)
+    DiagnosticMsg diag;
     for (const bchk::Error &error : errors) {
-        // TODO: Emit clang diags
+        diag.emit(error.loc,
+                  error.warning ? clang::DiagnosticsEngine::Warning
+                                : clang::DiagnosticsEngine::Error,
+                  error.text);
     }
     if (!quiet) {
         if (report.verified) {
             llvm::outs() << "verified\n";
         } else {
-            llvm::errs() << "ERROR: verification failed\n";
+            llvm::errs() << "verification failed\n";
         }
     }
     return report.verified ? 0 : 1;
