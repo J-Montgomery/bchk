@@ -66,13 +66,10 @@ class FactExtractorVisitor
                     llvm::errs() << "ERROR: Function " << fd->getNameAsString()
                                  << " lacks a body\n";
 
-                    clang::SourceLocation loc = fd->getLocation();
-                    Sym err_point = control.point("decl-without-body:" +
-                                                  fd->getNameAsString());
-                    recordPointLoc(err_point, loc);
-
-                    facts.err_unverified.push_back(
-                        {err_point, interner.intern("Function lacks a body")});
+                    const auto fname = fd->getNameAsString();
+                    verificationError(
+                        "fndecl " + fname, fd->getLocation(),
+                        std::format("Function {} lacks a body", fname));
                 }
             }
         }
@@ -296,6 +293,14 @@ class FactExtractorVisitor
             "{}:{}:{}", pres.getFilename(), pres.getLine(), pres.getColumn());
         llvm::errs() << "ERROR: " << error_str << " at " << location_str
                      << "\n";
+    }
+
+    void verificationError(const std::string &pt_name,
+                           clang::SourceLocation loc,
+                           const std::string &reason) {
+        Sym pt = control.point(pt_name);
+        recordPointLoc(pt, loc);
+        facts.err_unverified.push_back({pt, interner.intern(reason)});
     }
 
     const char *tag(const Stmt *stmt) {
