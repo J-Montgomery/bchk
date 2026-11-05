@@ -1,6 +1,3 @@
-#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_CHECKER_HPP
-#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_CHECKER_HPP
-
 #pragma once
 
 #include <array>
@@ -9,6 +6,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <clang/Tooling/Tooling.h>
 
 #include "intern.hpp"
 #include "rules.hpp"
@@ -24,6 +23,5 @@ Report analyzeSrcString(const std::string &c_source);
 Report analyzeFacts(Database &db, ExtractedFactSet &fact_set,
                     const std::set<std::string> &disabled = {});
 
+ExtractedFactSet generateFacts(clang::tooling::ClangTool &tool);
 } // namespace bchk
-
-#endif

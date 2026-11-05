@@ -364,36 +364,8 @@ class FactExtractorAction final : public clang::ASTFrontendAction {
     }
 };
 
-class FactExtractorFactory final
-    : public clang::tooling::FrontendActionFactory {
-    Interner &interner;
-    Facts &facts;
-    PointSourceMap &point_loc;
-
-  public:
-    FactExtractorFactory(Interner &interner, Facts &facts,
-                         PointSourceMap &point_loc)
-        : interner(interner), facts(facts), point_loc(point_loc) {}
-
-    std::unique_ptr<clang::FrontendAction> create() {
-        return std::make_unique<FactExtractorAction>(interner, facts,
-                                                     point_loc);
-    }
-};
-
-// NOLINTBEGIN(clang-diagnostic-unused-parameter)
-ExtractedFactSet runExtract(clang::tooling::ClangTool &tool) {
-    // NOLINTEND(clang-diagnostic-unused-parameter)
-    ExtractedFactSet result = {};
-
-    tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
-        {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
-        clang::tooling::ArgumentInsertPosition::BEGIN));
-
-    FactExtractorFactory factory(result.interner, result.facts,
-                                 result.point_loc);
-    tool.run(&factory);
-    return result;
+std::unique_ptr<clang::FrontendAction> FactExtractorFactory::create() {
+    return std::make_unique<FactExtractorAction>(interner, facts, point_loc);
 }
 
 } // namespace bchk

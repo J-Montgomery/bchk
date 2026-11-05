@@ -1,6 +1,3 @@
-#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_EXTRACTOR_HPP
-#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_EXTRACTOR_HPP
-
 #pragma once
 
 #include <clang/AST/ASTConsumer.h>
@@ -45,7 +42,18 @@ class CFGAction : public clang::ASTFrontendAction {
     }
 };
 
-ExtractedFactSet runExtract(clang::tooling::ClangTool &tool);
-} // namespace bchk
+class FactExtractorFactory final
+    : public clang::tooling::FrontendActionFactory {
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
 
-#endif
+  public:
+    FactExtractorFactory(Interner &interner, Facts &facts,
+                         PointSourceMap &point_loc)
+        : interner(interner), facts(facts), point_loc(point_loc) {}
+
+    std::unique_ptr<clang::FrontendAction> create();
+};
+
+} // namespace bchk

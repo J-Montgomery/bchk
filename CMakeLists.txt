@@ -70,7 +70,7 @@ endif()
 ## BCHK core
 add_library(bchk_core
                         src/extractor.cpp
-                        src/checker.cpp
+                        src/interface.cpp
                         src/fact_loader.cpp
                         src/error_rules.cpp
 )

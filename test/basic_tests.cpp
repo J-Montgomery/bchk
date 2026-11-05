@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-#include "checker.hpp"
+#include "interface.hpp"
 namespace bchk {
 
 namespace {

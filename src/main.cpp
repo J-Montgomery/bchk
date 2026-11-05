@@ -11,8 +11,7 @@
 #include <set>
 #include <string>
 
-#include "checker.hpp"
-#include "extractor.hpp"
+#include "interface.hpp"
 #include "rules.hpp"
 
 using namespace bchk;
@@ -55,7 +54,7 @@ int main(int argc, const char **argv) {
     // TODO: Create library model
     // TODO: Load builtin decls
 
-    bchk::ExtractedFactSet facts = bchk::runExtract(tool);
+    bchk::ExtractedFactSet facts = bchk::generateFacts(tool);
     bchk::Database db;
     std::set<std::string> disabled(disable_classes.begin(),
                                    disable_classes.end());

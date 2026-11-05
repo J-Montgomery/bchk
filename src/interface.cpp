@@ -3,8 +3,8 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
-#include "checker.hpp"
 #include "extractor.hpp"
+#include "interface.hpp"
 #include "rules.hpp"
 
 namespace bchk {
@@ -76,7 +76,7 @@ void buildRules(Database &db, Interner &interner) {
 
 bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
                           const std::set<std::string> &disabled) {
-    loadFacts(db, std::move(fact_set.facts));
+    loadRelations(db, std::move(fact_set.facts));
     buildRules(db, fact_set.interner);
     db.query.solve();
 
@@ -94,8 +94,23 @@ Report analyzeSrcString(const std::string &c_source) {
     clang::tooling::ClangTool tool(compilations, {"input.c"});
     tool.mapVirtualFile("input.c", c_source);
 
-    bchk::ExtractedFactSet facts = bchk::runExtract(tool);
+    bchk::ExtractedFactSet facts = bchk::generateFacts(tool);
     return analyzeFacts(db, facts, {});
+}
+
+// NOLINTBEGIN(clang-diagnostic-unused-parameter)
+ExtractedFactSet generateFacts(clang::tooling::ClangTool &tool) {
+    // NOLINTEND(clang-diagnostic-unused-parameter)
+    ExtractedFactSet result = {};
+
+    tool.appendArgumentsAdjuster(clang::tooling::getInsertArgumentAdjuster(
+        {"-fsyntax-only", "-DBCHK_ANNOTATIONS=1"},
+        clang::tooling::ArgumentInsertPosition::BEGIN));
+
+    FactExtractorFactory factory(result.interner, result.facts,
+                                 result.point_loc);
+    tool.run(&factory);
+    return result;
 }
 
 } // namespace bchk

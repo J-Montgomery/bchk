@@ -1,6 +1,3 @@
-#ifndef HOME_JM_SOFTWARE_CPP_BCHK_SRC_INTERN_HPP
-#define HOME_JM_SOFTWARE_CPP_BCHK_SRC_INTERN_HPP
-
 #pragma once
 
 #include <cstdint>
@@ -75,5 +72,3 @@ class Interner {
     std::vector<std::string_view> canonical_names;
     std::vector<std::string> display_names;
 };
-
-#endif

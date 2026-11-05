@@ -15,7 +15,7 @@ void loadPred(df::datalog::Predicate<Sym, N> &predicate,
         df::Relation<std::array<Sym, N>>::from_vec(std::move(facts)));
 }
 
-void loadFacts(Database &db, Facts facts) {
+void loadRelations(Database &db, Facts facts) {
 #define LOAD_PRED(name, arity) loadPred(db.name, std::move(facts.name));
     BCHK_RELATIONS(LOAD_PRED)
 #define LOAD_ERR_PRED(name, arity, text) LOAD_PRED(name, arity)
