@@ -11,14 +11,13 @@ project(
     LANGUAGES C CXX
 )
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS True)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g1")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -Wall")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -Wall")
 endif()
 
 ## Clang
@@ -96,3 +95,27 @@ target_link_libraries(bchk PRIVATE bchk_core)
 
 enable_testing()
 add_subdirectory(test)
+
+install(TARGETS bchk
+    RUNTIME DESTINATION bin
+)
+install(TARGETS bchk_core
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+)
+install(FILES headers/borrowck.h
+    DESTINATION include
+)
+install(FILES summary/std.summaries
+    DESTINATION share/bchk/summary
+)
+
+set(CPACK_PACKAGE_NAME "bchk")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "JM")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Borrowchecker for C")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "JM")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.31), libstdc++6 (>= 10), libclang-cpp18, libllvm18")
+set(CPACK_GENERATOR "DEB")
+
+include(CPack)
