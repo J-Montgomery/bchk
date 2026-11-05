@@ -31,7 +31,7 @@ llvm::cl::list<std::string>
     summary_specs("summary", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("declare a function effect"));
 llvm::cl::list<std::string>
-    summary_files("summary-file", llvm::cl::cat(bchk_category),
+    summary_files("summaries", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("path to a summary file"));
 llvm::cl::list<std::string> disable_classes(
     "bchk-disable", llvm::cl::cat(bchk_category),
