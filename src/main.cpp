@@ -28,19 +28,19 @@ const char *bchk_version = "0.0.1";
 
 static llvm::cl::OptionCategory bchk_category("bchk options");
 llvm::cl::list<std::string>
-    summary_specs("summary", llvm::cl::cat(bchk_category),
+    summary_specs("bchk-summary", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("declare a function effect"));
 llvm::cl::list<std::string>
-    summary_files("summaries", llvm::cl::cat(bchk_category),
+    summary_files("bchk-summaries", llvm::cl::cat(bchk_category),
                   llvm::cl::desc("path to a summary file"));
 llvm::cl::list<std::string> disable_classes(
     "bchk-disable", llvm::cl::cat(bchk_category),
     llvm::cl::desc("suppress comma-separated errors and warnings"),
     llvm::cl::CommaSeparated);
 llvm::cl::opt<std::string>
-    dump_dir("dump", llvm::cl::cat(bchk_category),
+    dump_dir("bchk-dump", llvm::cl::cat(bchk_category),
              llvm::cl::desc("dump generated facts to a TSV file under DIR"));
-llvm::cl::opt<bool> quiet("quiet", llvm::cl::cat(bchk_category),
+llvm::cl::opt<bool> quiet("bchk-quiet", llvm::cl::cat(bchk_category),
                           llvm::cl::desc("disable summary"));
 
 class DiagnosticMsg {
