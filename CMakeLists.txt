@@ -86,7 +86,7 @@ target_compile_options(bchk_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
 target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
 ## BCHK main
-add_executable(bchk src/main.cpp)
+add_executable(bchk src/main.cpp src/dump.cpp)
 target_compile_options(bchk PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable)
 target_compile_definitions(bchk PRIVATE
                            LLVM_VERSION="${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}"

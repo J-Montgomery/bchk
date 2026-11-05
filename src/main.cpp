@@ -9,7 +9,6 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 #include <llvm/Support/CommandLine.h>
-#include <llvm/Support/raw_os_ostream.h>
 #include <llvm/Support/raw_ostream.h>
 
 // #include <filesystem>
@@ -19,6 +18,7 @@
 #include <set>
 #include <string>
 
+#include "dump.hpp"
 #include "interface.hpp"
 #include "rules.hpp"
 
@@ -37,6 +37,9 @@ llvm::cl::list<std::string> disable_classes(
     "bchk-disable", llvm::cl::cat(bchk_category),
     llvm::cl::desc("suppress comma-separated errors and warnings"),
     llvm::cl::CommaSeparated);
+llvm::cl::opt<std::string>
+    dump_dir("dump", llvm::cl::cat(bchk_category),
+             llvm::cl::desc("dump generated facts to a TSV file under DIR"));
 llvm::cl::opt<bool> quiet("quiet", llvm::cl::cat(bchk_category),
                           llvm::cl::desc("disable summary"));
 
@@ -142,6 +145,7 @@ int main(int argc, const char **argv) {
                                 : clang::DiagnosticsEngine::Error,
                   error.text);
     }
+
     if (!quiet) {
         if (report.verified) {
             llvm::outs() << "verified\n";
@@ -149,5 +153,10 @@ int main(int argc, const char **argv) {
             llvm::errs() << "verification failed\n";
         }
     }
+
+    if (!dump_dir.empty()) {
+        bchk_cli::dumpRelations(db, facts.interner, dump_dir.getValue());
+    }
+
     return report.verified ? 0 : 1;
 }
