@@ -10,6 +10,7 @@
 #define MUT_BORROW __attribute__((annotate("bc_mut_borrow")))
 #define INVALIDATES __attribute__((annotate("bc_invalidates")))
 #define DESTROY __attribute__((annotate("bc_destroy")))
+#define ASSUME_INIT __attribute__((annotate("bc_init")))
 
 #if defined(__cplusplus)
 #define LIFETIME_BOUND [[gsl::lifetimebound]]

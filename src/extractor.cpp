@@ -69,8 +69,49 @@ class FactExtractorVisitor
                     const auto fname = fd->getNameAsString();
                     verificationError(
                         "fndecl " + fname, fd->getLocation(),
-                        std::format("Function {} lacks a body", fname));
+                        std::format(err::verification::k_fn_missing_body,
+                                    fname));
+                    continue;
                 }
+            }
+
+            if (const clang::RecordDecl *r =
+                    clang::dyn_cast<clang::RecordDecl>(decl)) {
+                if (r->isUnion()) {
+                    const auto uname = r->getNameAsString();
+                    verificationError(
+                        "union decl " + uname, r->getLocation(),
+                        std::format(err::verification::k_banned_decl, uname,
+                                    "union"));
+                    continue;
+                }
+            }
+
+            if (const clang::TypedefDecl *td =
+                    clang::dyn_cast<clang::TypedefDecl>(decl)) {
+                if (isUnionType(td->getUnderlyingType())) {
+                    const auto uname = td->getNameAsString();
+                    verificationError(
+                        "union decl " + uname, td->getLocation(),
+                        std::format(err::verification::k_banned_decl, uname,
+                                    "union"));
+                    continue;
+                }
+            }
+
+            if (const clang::VarDecl *global_var =
+                    clang::dyn_cast<clang::VarDecl>(decl)) {
+                const clang::QualType type = global_var->getType();
+                if (global_var->getTLSKind() !=
+                        clang::VarDecl::TLSKind::TLS_None ||
+                    type->isAtomicType()) {
+                    const auto varname = global_var->getNameAsString();
+                    verificationError(
+                        "var decl " + varname, global_var->getLocation(),
+                        std::format(err::verification::k_banned_decl, varname,
+                                    "thread-local or atomic"));
+                }
+                continue;
             }
         }
 
@@ -99,6 +140,7 @@ class FactExtractorVisitor
 
         // Gather the param annotations
         for (const clang::ParmVarDecl *param : fd->parameters()) {
+            llvm::outs() << "param " << param->getNameAsString() << "\n";
             const Sym param_place = placeForVar(param);
             const std::string role = roleOf(param);
             if (!role.empty()) {
@@ -109,8 +151,13 @@ class FactExtractorVisitor
                 // TODO: isPointerType doesn't handle member pointers if this
                 // ever supports C++
                 if (type->isPointerType()) {
-                    llvm::errs() << "ERROR: param " << param->getNameAsString()
+                    const auto pname = param->getNameAsString();
+                    llvm::errs() << "ERROR: param " << pname
                                  << " is an unannotated pointer\n";
+                    verificationError(
+                        "missing role " + pname, param->getLocation(),
+                        std::format(err::verification::k_ptr_missing_role,
+                                    pname));
                 }
             }
         }
@@ -201,24 +248,35 @@ class FactExtractorVisitor
         }
     }
 
-    std::string roleOf(const clang::Decl *decl) {
+    std::string roleOf(const clang::ValueDecl *decl) {
         std::string role;
         for (const clang::Attr *attr : decl->attrs()) {
             if (const auto *annotated_attr =
                     clang::dyn_cast<clang::AnnotateAttr>(attr)) {
                 std::string tag = annotated_attr->getAnnotation().str();
-                if (tag == "bc_owner")
-                    role = role::owner;
-                else if (tag == "bc_borrow")
-                    role = role::borrow;
-                else if (tag == "bc_mut_borrow")
-                    role = role::mut_borrow;
+
+                const std::string dbg = std::format(
+                    "Value {} has tag {}\n", decl->getNameAsString(), tag);
+                llvm::outs() << dbg;
+                if (tag != "bc_owner" && tag != "bc_borrow" &&
+                    tag != "bc_mut_borrow")
+                    continue;
+                if (!role.empty()) {
+                    const auto declname = decl->getNameAsString();
+                    verificationError(
+                        "role conflict " + declname, decl->getLocation(),
+                        std::format(err::verification::k_role_conflict,
+                                    declname));
+                }
+
+                role = tag;
+                llvm::outs() << "set role " << tag << "\n";
             }
         }
         return role;
     }
 
-    Sym placeForVar(const clang::ValueDecl *var_decl) {
+    Sym placeForVar(const clang::VarDecl *var_decl) {
         auto found = var_places.find(var_decl);
         if (found != var_places.end()) {
             return found->second;
@@ -231,11 +289,36 @@ class FactExtractorVisitor
                 interner.intern("param:" + current_fn + "#" +
                                 std::to_string(parm->getFunctionScopeIndex()));
             interner.set_display(place, var_decl->getNameAsString());
-        } else {
-            place = places.base(var_decl->getNameAsString());
+        } else { // non-param var
+            const clang::VarDecl *var =
+                clang::dyn_cast<clang::VarDecl>(var_decl);
+            place =
+                (var != nullptr && var->isFileVarDecl())
+                    ? interner.intern(
+                          var_decl->getNameAsString()) // deduplicate globals
+                                                       // across all TUs
+                    : places.base(
+                          var_decl
+                              ->getNameAsString()); // give locals a unique id
         }
 
         var_places[var_decl] = place;
+        if (var_decl->hasInit() || (getAnnotation(var_decl) == "bc_init")) {
+            facts.var_init.push_back({place});
+        }
+
+        if (var_decl->getType()->isPointerType()) {
+            facts.pointer_decl.push_back({place});
+            if (roleOf(var_decl) != "") {
+                places.role(place, roleOf(var_decl));
+            }
+        }
+
+        if (var_decl->hasGlobalStorage()) {
+            // TODO: This also tracks static locals,
+            // so maybe we can lift them to globals?
+            facts.global_decl.push_back({place});
+        }
         return place;
     }
 
@@ -301,6 +384,30 @@ class FactExtractorVisitor
         Sym pt = control.point(pt_name);
         recordPointLoc(pt, loc);
         facts.err_unverified.push_back({pt, interner.intern(reason)});
+    }
+
+    static bool isUnionType(clang::QualType qt) {
+        const clang::QualType t = qt.getCanonicalType();
+        if (const clang::RecordType *rt = t->getAs<clang::RecordType>()) {
+            return rt->getDecl()->isUnion();
+        }
+        return false;
+    }
+
+    static std::string getAnnotation(const clang::Decl *decl) {
+        for (const clang::Attr *attr : decl->attrs()) {
+            if (const auto *annotated_attr =
+                    clang::dyn_cast<clang::AnnotateAttr>(attr)) {
+                return annotated_attr->getAnnotation().str();
+            }
+        }
+        return "";
+    }
+    bool isAddressOf(const clang::Expr *expr) const {
+        const clang::Expr *e = expr->IgnoreParenImpCasts();
+        const clang::UnaryOperator *uo =
+            clang::dyn_cast<clang::UnaryOperator>(e);
+        return uo != nullptr && uo->getOpcode() == clang::UO_AddrOf;
     }
 
     const char *tag(const Stmt *stmt) {

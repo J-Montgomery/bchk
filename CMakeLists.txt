@@ -15,10 +15,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
 endif()
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g1")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fno-omit-frame-pointer -Wall")
-endif()
+# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g1 -fno-omit-frame-pointer -Wall")
+# endif()
 
 ## Clang
 find_package(LLVM REQUIRED CONFIG)
