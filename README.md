@@ -2,6 +2,8 @@
 
 **bchk** is an annotations-based borrowchecker for C.
 
+`bchk [options] <source0> [... <sourceN>] -- [clang options]` 
+
 ## Table of Contents
 
 * [Project Goals](#project-goals)
@@ -19,7 +21,7 @@
 
 **bchk** is a sound temporal borrowchecker for C. Correctly annotated programs accepted by **bchk** are temporally memory safe without compiler-inserted checks or value-dependent analysis. As a direct consequence of this, the tool only accepts a subset of valid C .
 
-It does not require using a new compiler or a special runtime, like more powerful tools such as [Fil-c](https://fil-c.org/) do. You pass it the same arguments as Clang and tells you where your code violates the model.
+It does not require using a new compiler or a special runtime, like more powerful tools such as [Fil-c](https://fil-c.org/) do.
 
 ### Limitations
 

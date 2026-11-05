@@ -28,4 +28,26 @@
 * A single mutable reference to an obj
 * Only one or the other of these may be true at any point
 
-Start with lexical lifetimes first I guess before introducing dartfrog?
+~~Start with lexical lifetimes first I guess before introducing dartfrog?~~
+
+## summary DSL thoughts
+
+Since C doesn't have mangling, only one function name can exist at a time in a TU, and between
+TUs duplicates (e.g. static locals) only need to be disambiguated to TU level (except nested functions). That means parameters are irrelevant, so we can limit consideration to just param indices, and then a set list of effects for each.
+
+possible syntax?
+
+```
+fn malloc 1
+    returns_owned
+fn free 1
+    takes_ownership 0
+    frees 0
+fn realloc 2
+    returns_owned
+    takes_ownership 0
+    frees 0
+fn set 2 @ src/foo.c
+    writes 0
+    aliases 0 1
+```
