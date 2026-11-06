@@ -160,8 +160,10 @@ class FactExtractorVisitor
         if (fd->getBody()) {
             TraverseStmt(fd->getBody());
         } else {
-            clang::SourceLocation loc = fd->getLocation();
-            logConsoleError("function declaration without a body", loc);
+            const auto fname = fd->getNameAsString();
+            Sym pt = control.point(std::format("fn {}", fname));
+            recordPointLoc(pt, fd);
+            facts.unbodied_fn.push_back({pt, interner.intern(fname)});
         }
     }
 
@@ -173,8 +175,11 @@ class FactExtractorVisitor
         std::unique_ptr<clang::CFG> cfg =
             clang::CFG::buildCFG(fd, fd->getBody(), &context, opts);
         if (!cfg) {
-            clang::SourceLocation loc = fd->getLocation();
-            logConsoleError("couldn't build function cfg", loc);
+            const auto cfgname = fd->getNameAsString();
+            Sym pt = control.point(
+                std::format("couldn't build function cfg {}", cfgname));
+            recordPointLoc(pt, fd);
+            facts.err_internal.push_back({pt, interner.intern(cfgname)});
             return;
         }
 

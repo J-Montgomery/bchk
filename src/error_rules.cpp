@@ -26,5 +26,9 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
         DL_VARS(Point, Reason);
         RULE(db.query, db.any_err(Point) <= db.err_unverified(Point, Reason));
     }
+    {
+        DL_VARS(Point, Reason);
+        RULE(db.query, db.any_err(Point) <= db.err_internal(Point, Reason));
+    }
 }
 } // namespace bchk
