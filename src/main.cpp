@@ -15,8 +15,8 @@
 // #include <format>
 #include <algorithm>
 #include <iostream>
-#include <set>
 #include <string>
+#include <unordered_set>
 
 #include "dump.hpp"
 #include "interface.hpp"
@@ -127,8 +127,8 @@ int main(int argc, const char **argv) {
 
     bchk::ExtractedFactSet facts = bchk::generateFacts(tool);
     bchk::Database db;
-    std::set<std::string> disabled(disable_classes.begin(),
-                                   disable_classes.end());
+    std::unordered_set<std::string> disabled(disable_classes.begin(),
+                                             disable_classes.end());
     const bchk::Report report = bchk::analyzeFacts(db, facts, disabled);
 
     // TODO: initialize db

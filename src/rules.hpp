@@ -6,9 +6,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "clang/Basic/SourceLocation.h"
@@ -85,7 +85,7 @@ struct ExtractedFactSet {
     Facts facts;
     Interner interner;
     PointSourceMap point_loc;
-    std::set<std::string> defined;
+    std::unordered_set<std::string> defined;
 };
 
 struct Error {

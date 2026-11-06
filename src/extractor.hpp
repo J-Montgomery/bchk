@@ -13,35 +13,6 @@
 
 namespace bchk {
 
-class CFGVisitor : public clang::RecursiveASTVisitor<CFGVisitor> {
-  public:
-    explicit CFGVisitor(clang::ASTContext &ctx) : ctx(ctx) {}
-
-    bool visitCxxRecordDecl(clang::CXXRecordDecl *rd);
-    bool visitFunctionDecl(clang::FunctionDecl *fd);
-
-  private:
-    clang::ASTContext &ctx;
-};
-
-class CFGConsumer : public clang::ASTConsumer {
-  public:
-    void HandleTranslationUnit(clang::ASTContext &ctx) override {
-        CFGVisitor visitor(ctx);
-
-        visitor.TraverseDecl(ctx.getTranslationUnitDecl());
-    }
-};
-
-class CFGAction : public clang::ASTFrontendAction {
-  public:
-    std::unique_ptr<clang::ASTConsumer>
-    CreateASTConsumer(clang::CompilerInstance &inst,
-                      clang::StringRef file) override {
-        return std::make_unique<CFGConsumer>();
-    }
-};
-
 class FactExtractorFactory final
     : public clang::tooling::FrontendActionFactory {
     Interner &interner;

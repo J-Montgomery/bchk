@@ -96,12 +96,12 @@ target_compile_definitions(bchk_core PRIVATE ${LLVM_DEFINITIONS}
                            BCHK_INCLUDE_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/headers/borrowck.h")
 target_compile_definitions(bchk_core PUBLIC
                            BCHK_SYSTEM_SUMMARIES="${CMAKE_CURRENT_SOURCE_DIR}/summary/std.summaries")
-target_compile_options(bchk_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
+target_compile_options(bchk_core PRIVATE -Wall -Wextra)
 target_link_libraries(bchk_core PUBLIC bchk_headers ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
 ## BCHK main
 add_executable(bchk src/main.cpp src/dump.cpp)
-target_compile_options(bchk PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable)
+target_compile_options(bchk PRIVATE -Wall -Wextra)
 target_compile_definitions(bchk PRIVATE
                            LLVM_VERSION="${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}"
 )

@@ -1,7 +1,7 @@
 #pragma once
 
-#include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <clang/Tooling/Tooling.h>
@@ -13,7 +13,7 @@ namespace bchk {
 Report analyzeSrcString(const std::string &c_source,
                         const std::vector<std::string> &args = {});
 Report analyzeFacts(Database &db, ExtractedFactSet &fact_set,
-                    const std::set<std::string> &disabled = {});
+                    const std::unordered_set<std::string> &disabled = {});
 
 ExtractedFactSet generateFacts(clang::tooling::ClangTool &tool);
 } // namespace bchk

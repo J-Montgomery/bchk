@@ -1,9 +1,9 @@
 #include <array>
 #include <cstddef>
 #include <format>
-#include <set>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <clang/Tooling/CompilationDatabase.h>
@@ -153,7 +153,7 @@ void collectErrors(Report &report, const std::string &rel_name,
 // NOLINTBEGIN(clang-diagnostic-unused-parameter)
 Report collectReport(const Database &db, const Interner &interner,
                      const PointSourceMap &point_loc,
-                     const std::set<std::string> &disabled) {
+                     const std::unordered_set<std::string> &disabled) {
     // NOLINTEND(clang-diagnostic-unused-parameter)
     Report report{};
     report.verified = true;
@@ -187,7 +187,7 @@ void buildRules(Database &db, Interner &interner) {
 } // anonymous namespace
 
 bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
-                          const std::set<std::string> &disabled) {
+                          const std::unordered_set<std::string> &disabled) {
     loadRelations(db, std::move(fact_set.facts));
     buildRules(db, fact_set.interner);
     db.query.solve();
@@ -201,7 +201,7 @@ Report analyzeSrcString(const std::string &c_source,
     Database db;
     Interner interner;
     PointSourceMap point_loc{};
-    std::set<std::string> disabled_relations{};
+    std::unordered_set<std::string> disabled_relations{};
 
     std::vector<std::string> clang_args = {"clang", "input.c"};
     clang_args.insert(clang_args.end(), args.begin(), args.end());

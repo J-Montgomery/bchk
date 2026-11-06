@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "cfg_abstractions.hpp"
@@ -32,22 +33,6 @@ using clang::Stmt;
 
 class FactExtractorVisitor
     : public clang::RecursiveASTVisitor<FactExtractorVisitor> {
-    clang::ASTContext &context;
-    Interner &interner;
-    Facts &facts;
-    PointSourceMap &point_loc;
-
-    std::string current_fn;
-    Sym fn_exit = -1;
-    Sym current_point = -1;
-    ControlBuilder control;
-    PlaceBuilder places;
-
-    std::unordered_map<const Stmt *, Sym> stmt_pt;
-    std::unordered_map<const clang::ValueDecl *, Sym> var_places;
-    std::unordered_map<Sym, Sym> current_alloc;
-    std::unordered_map<Sym, std::string> place_role;
-
   public:
     FactExtractorVisitor(clang::ASTContext &context, Interner &interner,
                          Facts &facts, PointSourceMap &point_loc)
@@ -56,24 +41,45 @@ class FactExtractorVisitor
           places(interner, facts) {}
 
     bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *tu);
-
     bool VisitCallExpr(clang::CallExpr *ce);
 
   private:
     void extractFunction(const FunctionDecl *fd);
     void emitCfgEdges(const FunctionDecl *fd, Sym entry, Sym exit);
-    std::string roleOf(const clang::ValueDecl *decl) const;
+
+    Sym mintPoint(const Stmt *stmt);
     Sym placeForVar(const clang::VarDecl *var_decl);
+
+    std::string roleOf(const clang::ValueDecl *decl) const;
     std::string calleeName(const clang::CallExpr *ce) const;
     std::string src(const Stmt *stmt) const;
-    Sym mintPoint(const Stmt *stmt);
+
+    static std::string getAnnotation(const clang::Decl *decl);
+    static bool isUnionType(clang::QualType qt);
+
     void recordSourceRangeLoc(Sym point, const clang::SourceRange range);
     void recordPointLoc(Sym point, const clang::Decl *decl);
     void logConsoleError(std::string error_str, clang::SourceLocation loc);
-    static bool isUnionType(clang::QualType qt);
-    static std::string getAnnotation(const clang::Decl *decl);
+
     bool isAddressOf(const clang::Expr *expr) const;
     const char *tag(const Stmt *stmt);
+
+    clang::ASTContext &context;
+    Interner &interner;
+    Facts &facts;
+    PointSourceMap &point_loc;
+
+    std::string current_fn;
+    Sym fn_exit = -1;
+    Sym current_point = -1;
+
+    ControlBuilder control;
+    PlaceBuilder places;
+
+    std::unordered_map<const Stmt *, Sym> stmt_pt;
+    std::unordered_map<const clang::ValueDecl *, Sym> var_places;
+
+    std::unordered_set<Sym> declared_fn;
 };
 
 /****************** Extractor public visitors ******************/
@@ -164,7 +170,6 @@ void FactExtractorVisitor::extractFunction(const FunctionDecl *fd) {
         const std::string role = roleOf(param);
         if (!role.empty()) {
             places.role(param_place, role);
-            place_role[param_place] = role;
         } else {
             clang::QualType type = param->getType();
             // TODO: isPointerType doesn't handle member pointers if this
