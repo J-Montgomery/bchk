@@ -13,11 +13,13 @@
     X(global_decl, 1)                                                          \
     X(banned_decl, 2)                                                          \
     X(unbodied_fn, 2)                                                          \
-    X(ptr_missing_role, 2)                                                     \
-    X(any_err, 1)
+    X(ptr_missing_role, 2)
 
 #define BCHK_ERR_RELATIONS(X)                                                  \
     X(err_unverified, 2, "Could not verify")                                   \
+    X(err_unbodied_fn, 2, "function '{}' has no body")                         \
+    X(err_banned_decl, 2, "unsupported declaration '{}' ({})")                 \
+    X(err_ptr_missing_role, 2, "pointer '{}' has no borrow role")              \
     X(err_internal, 2, "Internal tool error")
 
 namespace bchk::err {
