@@ -2,6 +2,7 @@
 
 #include <set>
 #include <string>
+#include <vector>
 
 #include <clang/Tooling/Tooling.h>
 
@@ -9,7 +10,8 @@
 
 namespace bchk {
 
-Report analyzeSrcString(const std::string &c_source);
+Report analyzeSrcString(const std::string &c_source,
+                        const std::vector<std::string> &args = {});
 Report analyzeFacts(Database &db, ExtractedFactSet &fact_set,
                     const std::set<std::string> &disabled = {});
 

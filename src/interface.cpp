@@ -126,13 +126,17 @@ bchk::Report analyzeFacts(Database &db, bchk::ExtractedFactSet &fact_set,
 }
 
 // NOLINTNEXTLINE(clang-diagnostic-unused-parameter)
-Report analyzeSrcString(const std::string &c_source) {
+Report analyzeSrcString(const std::string &c_source,
+                        const std::vector<std::string> &args) {
     Database db;
     Interner interner;
     PointSourceMap point_loc{};
     std::set<std::string> disabled_relations{};
 
-    clang::tooling::FixedCompilationDatabase compilations(".", {});
+    std::vector<std::string> clang_args = {"clang", "input.c"};
+    clang_args.insert(clang_args.end(), args.begin(), args.end());
+
+    clang::tooling::FixedCompilationDatabase compilations(".", args);
     clang::tooling::ClangTool tool(compilations, {"input.c"});
     tool.mapVirtualFile("input.c", c_source);
 

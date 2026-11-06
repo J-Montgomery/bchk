@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,10 +14,6 @@ project(
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
 endif()
-
-# if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g1 -fno-omit-frame-pointer -Wall")
-# endif()
 
 ## Clang
 find_package(LLVM REQUIRED CONFIG)
@@ -65,6 +61,16 @@ else()
     message(STATUS "clang-format not found. Disabling format target")
 endif()
 
+## User-facing annotations header
+add_library(bchk_headers INTERFACE)
+target_sources(bchk_headers
+    INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS headers
+        FILES
+            headers/borrowck.h
+)
+
 ## BCHK core
 add_library(bchk_core
                         src/extractor.cpp
@@ -72,17 +78,18 @@ add_library(bchk_core
                         src/fact_loader.cpp
                         src/error_rules.cpp
 )
+
 target_include_directories(bchk_core PUBLIC src)
 target_include_directories(bchk_core SYSTEM PUBLIC
                                      ${dartfrog_INCLUDE_DIRS}
                                      ${LLVM_INCLUDE_DIRS}
                                      ${CLANG_INCLUDE_DIRS})
 target_compile_definitions(bchk_core PRIVATE ${LLVM_DEFINITIONS}
-                           BCHK_INCLUDE_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/headers/bchk2.h")
+                           BCHK_INCLUDE_HEADER="${CMAKE_CURRENT_SOURCE_DIR}/headers/borrowck.h")
 target_compile_definitions(bchk_core PUBLIC
                            BCHK_SYSTEM_SUMMARIES="${CMAKE_CURRENT_SOURCE_DIR}/summary/std.summaries")
 target_compile_options(bchk_core PRIVATE -Wall -Wextra -Wno-unused-parameter)
-target_link_libraries(bchk_core PUBLIC ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
+target_link_libraries(bchk_core PUBLIC bchk_headers ${LIBCLANG_CPP} ${LIBLLVM_SHARED})
 
 ## BCHK main
 add_executable(bchk src/main.cpp src/dump.cpp)
@@ -99,11 +106,12 @@ install(TARGETS bchk
     RUNTIME DESTINATION bin
 )
 install(TARGETS bchk_core
+    RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )
-install(FILES headers/borrowck.h
-    DESTINATION include
+install(TARGETS bchk_headers
+    FILE_SET HEADERS DESTINATION include
 )
 install(FILES summary/std.summaries
     DESTINATION share/bchk/summary
