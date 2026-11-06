@@ -1,15 +1,33 @@
 cmake_minimum_required(VERSION 3.25)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
 project(
     bchk
     VERSION 0.0.1
     LANGUAGES C CXX
 )
+
+option(BCHK_BUILD_TOOL "Build the bchk CLI and bchk-core library" ON)
+
+## User-facing annotations header
+add_library(bchk_headers INTERFACE)
+target_sources(bchk_headers
+    INTERFACE
+        FILE_SET HEADERS
+        BASE_DIRS headers
+        FILES
+            headers/borrowck.h
+)
+
+install(TARGETS bchk_headers
+    FILE_SET HEADERS DESTINATION include
+)
+
+if(BCHK_BUILD_TOOL)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build Type" FORCE)
@@ -61,16 +79,6 @@ else()
     message(STATUS "clang-format not found. Disabling format target")
 endif()
 
-## User-facing annotations header
-add_library(bchk_headers INTERFACE)
-target_sources(bchk_headers
-    INTERFACE
-        FILE_SET HEADERS
-        BASE_DIRS headers
-        FILES
-            headers/borrowck.h
-)
-
 ## BCHK core
 add_library(bchk_core
                         src/extractor.cpp
@@ -110,9 +118,6 @@ install(TARGETS bchk_core
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
 )
-install(TARGETS bchk_headers
-    FILE_SET HEADERS DESTINATION include
-)
 install(FILES summary/std.summaries
     DESTINATION share/bchk/summary
 )
@@ -126,3 +131,5 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "libc6 (>= 2.31), libstdc++6 (>= 10), libclang-
 set(CPACK_GENERATOR "DEB")
 
 include(CPack)
+
+endif() # BCHK_BUILD_TOOL
