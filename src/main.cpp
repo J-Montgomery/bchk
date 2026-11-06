@@ -73,17 +73,23 @@ class DiagnosticMsg {
                                            clang::SrcMgr::C_User);
         }
 
-        clang::SourceLocation src_loc =
-            src_manager.translateLineCol(fid, loc.line, loc.col);
-        if (src_loc.isInvalid()) {
-            llvm::errs() << "ERROR: " << loc.file << ":" << loc.line << ":"
-                         << loc.col << ": " << text << "\n";
+        clang::SourceLocation begin =
+            src_manager.translateLineCol(fid, loc.begin_line, loc.begin_col);
+        clang::SourceLocation end =
+            src_manager.translateLineCol(fid, loc.end_line, loc.end_col);
+        if (begin.isInvalid() || end.isInvalid()) {
+            const std::string err_msg =
+                std::format("ERROR: in {} from {}:{} to {}:{}, {}\n", loc.file,
+                            loc.begin_line, loc.begin_col, loc.end_line,
+                            loc.end_col, text.str());
+            llvm::errs() << err_msg;
             return;
         }
-
+        clang::CharSourceRange range =
+            clang::CharSourceRange::getTokenRange(begin, end);
         clang::TextDiagnostic text_diags(os, lang_opts, diag_opts.get());
-        text_diags.emitDiagnostic(clang::FullSourceLoc(src_loc, src_manager),
-                                  level, text, {}, {});
+        text_diags.emitDiagnostic(clang::FullSourceLoc(begin, src_manager),
+                                  level, text, {range}, {});
         os.flush();
     }
 

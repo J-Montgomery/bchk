@@ -29,14 +29,21 @@ const std::string mut_borrow = "mut_borrow";
 
 struct SrcLoc {
     std::string file;
-    unsigned line = 0;
-    unsigned col = 0;
+
+    unsigned begin_line = 0;
+    unsigned begin_col = 0;
+
+    unsigned end_line = 0;
+    unsigned end_col = 0;
 
     bool valid() const { return !file.empty(); }
     std::string str() const {
-        return file + ":" + std::to_string(line) + ":" + std::to_string(col);
+        auto begin_str =
+            std::to_string(begin_line) + ":" + std::to_string(begin_col);
+        auto end_str = std::to_string(end_line) + ":" + std::to_string(end_col);
+        return file + ":" + begin_str + "->" + end_str;
     }
-    auto tie() const { return std::tie(file, line, col); }
+    auto tie() const { return std::tie(file, begin_line, begin_col); }
     bool operator<(const SrcLoc &other) const { return tie() < other.tie(); }
     bool operator==(const SrcLoc &other) const { return tie() == other.tie(); }
 };

@@ -66,7 +66,7 @@ class FactExtractorVisitor
 
                     const auto fname = fd->getNameAsString();
                     Sym pt = control.point(std::format("fn {}", fname));
-                    recordPointLoc(pt, fd->getLocation());
+                    recordPointLoc(pt, fd);
                     facts.unbodied_fn.push_back({pt, interner.intern(fname)});
                     continue;
                 }
@@ -77,7 +77,7 @@ class FactExtractorVisitor
                 if (r->isUnion()) {
                     const auto uname = r->getNameAsString();
                     Sym pt = control.point(std::format("union {}", uname));
-                    recordPointLoc(pt, r->getLocation());
+                    recordPointLoc(pt, r);
                     facts.banned_decl.push_back({pt, interner.intern(uname)});
 
                     continue;
@@ -89,7 +89,7 @@ class FactExtractorVisitor
                 if (isUnionType(td->getUnderlyingType())) {
                     const auto uname = td->getNameAsString();
                     Sym pt = control.point(std::format("union {}", uname));
-                    recordPointLoc(pt, td->getLocation());
+                    recordPointLoc(pt, td);
                     facts.banned_decl.push_back({pt, interner.intern(uname)});
                     continue;
                 }
@@ -104,7 +104,7 @@ class FactExtractorVisitor
                     const auto varname = global_var->getNameAsString();
                     Sym pt =
                         control.point(std::format("tls/atomic {}", varname));
-                    recordPointLoc(pt, global_var->getLocation());
+                    recordPointLoc(pt, global_var);
                     facts.banned_decl.push_back({pt, interner.intern(varname)});
                 }
                 continue;
@@ -130,13 +130,13 @@ class FactExtractorVisitor
         const Sym exit = control.point("exit:" + current_fn);
         fn_exit = exit;
 
-        recordPointLoc(entry, fd->getBeginLoc());
-        recordPointLoc(exit, fd->getEndLoc());
+        // TODO: This doesn't work after the interface change for recordPointLoc
+        recordPointLoc(entry, fd);
+        recordPointLoc(exit, fd);
         control.begin_fn(current_fn, entry, exit);
 
         // Gather the param annotations
         for (const clang::ParmVarDecl *param : fd->parameters()) {
-            llvm::outs() << "param " << param->getNameAsString() << "\n";
             const Sym param_place = placeForVar(param);
             const std::string role = roleOf(param);
             if (!role.empty()) {
@@ -148,13 +148,10 @@ class FactExtractorVisitor
                 // ever supports C++
                 if (type->isPointerType()) {
                     const auto pname = param->getNameAsString();
-                    llvm::errs() << "ERROR: param " << pname
-                                 << " is an unannotated pointer\n";
                     Sym pt = control.point(std::format("ptr {}", pname));
-                    recordPointLoc(pt, param->getLocation());
+                    recordPointLoc(pt, param);
                     facts.ptr_missing_role.push_back(
                         {pt, interner.intern(pname)});
-                    recordPointLoc(pt, fd->getLocation());
                 }
             }
         }
@@ -329,19 +326,27 @@ class FactExtractorVisitor
     Sym mintPoint(const Stmt *stmt) {
         const Sym p = control.point(tag(stmt));
         stmt_pt[stmt] = p;
-        recordPointLoc(p, stmt->getBeginLoc());
+        recordSourceRangeLoc(p, stmt->getSourceRange());
         return p;
     }
 
-    void recordPointLoc(Sym point, clang::SourceLocation loc) {
-        if (loc.isInvalid())
+    void recordSourceRangeLoc(Sym point, const clang::SourceRange range) {
+        if (range.isInvalid())
             return;
-        const clang::PresumedLoc pres =
-            context.getSourceManager().getPresumedLoc(loc);
-        if (pres.isValid()) {
-            point_loc[point] = {pres.getFilename(), pres.getLine(),
-                                pres.getColumn()};
+        const clang::PresumedLoc begin =
+            context.getSourceManager().getPresumedLoc(range.getBegin());
+        const clang::PresumedLoc end =
+            context.getSourceManager().getPresumedLoc(range.getEnd());
+        if (begin.isValid() && end.isValid()) {
+            point_loc[point] = {begin.getFilename(), begin.getLine(),
+                                begin.getColumn(), end.getLine(),
+                                end.getColumn()};
         }
+    }
+
+    void recordPointLoc(Sym point, const clang::Decl *decl) {
+        const auto range = decl->getSourceRange();
+        recordSourceRangeLoc(point, range);
     }
 
     void logConsoleError(std::string error_str, clang::SourceLocation loc) {
