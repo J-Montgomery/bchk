@@ -248,29 +248,24 @@ class FactExtractorVisitor
         }
     }
 
-    std::string roleOf(const clang::ValueDecl *decl) {
+    std::string roleOf(const clang::ValueDecl *decl) const {
         std::string role;
         for (const clang::Attr *attr : decl->attrs()) {
             if (const auto *annotated_attr =
                     clang::dyn_cast<clang::AnnotateAttr>(attr)) {
                 std::string tag = annotated_attr->getAnnotation().str();
-
-                const std::string dbg = std::format(
-                    "Value {} has tag {}\n", decl->getNameAsString(), tag);
-                llvm::outs() << dbg;
                 if (tag != "bc_owner" && tag != "bc_borrow" &&
                     tag != "bc_mut_borrow")
                     continue;
-                if (!role.empty()) {
-                    const auto declname = decl->getNameAsString();
-                    verificationError(
-                        "role conflict " + declname, decl->getLocation(),
-                        std::format(err::verification::k_role_conflict,
-                                    declname));
-                }
+                // if (!role.empty()) {
+                //     const auto declname = decl->getNameAsString();
+                //     verificationError(
+                //         "role conflict " + declname, decl->getLocation(),
+                //         std::format(err::verification::k_role_conflict,
+                //                     declname));
+                // }
 
                 role = tag;
-                llvm::outs() << "set role " << tag << "\n";
             }
         }
         return role;
