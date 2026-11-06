@@ -102,7 +102,7 @@ Report collectReport(const Database &db, const Interner &interner,
         }                                                                      \
     }
 
-#define COLLECTED_ERRS(name, arity, text) COLLECT_NAMED_ERR(name)
+#define COLLECTED_ERRS(name, arity) COLLECT_NAMED_ERR(name)
     BCHK_ERR_RELATIONS(COLLECTED_ERRS)
 #undef COLLECT_ERRS
 #undef COLLECT_NAMED_ERR

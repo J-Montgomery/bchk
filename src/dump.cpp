@@ -56,7 +56,7 @@ void dumpRelations(const bchk::Database &db, const Interner &interner,
 
 #define DUMP_RELATIONS(name, arity) dumpFile(#name, db.name.peek());
     BCHK_RELATIONS(DUMP_RELATIONS)
-#define DUMP_ERROR_RELATIONS(name, arity, text) DUMP_RELATIONS(name, arity)
+#define DUMP_ERROR_RELATIONS(name, arity) DUMP_RELATIONS(name, arity)
 #undef DUMP_ERROR_RELATIONS
 #undef DUMP_RELATIONS
 }

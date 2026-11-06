@@ -53,14 +53,14 @@ struct Database {
     df::datalog::Datalog query;
 #define DB_PREDICATE(name, arity) df::datalog::Predicate<Sym, arity> name;
     BCHK_RELATIONS(DB_PREDICATE)
-#define ERR_DB_PREDICATE(name, arity, text) DB_PREDICATE(name, arity)
+#define ERR_DB_PREDICATE(name, arity) DB_PREDICATE(name, arity)
     BCHK_ERR_RELATIONS(ERR_DB_PREDICATE)
 #undef DB_PREDICATE
 #undef ERR_DB_PREDICATE
     Database() {
 #define DB_REGISTER(name, arity) query.register_predicate(&name);
         BCHK_RELATIONS(DB_REGISTER)
-#define DB_ERR_REGISTER(name, arity, text) DB_REGISTER(name, arity)
+#define DB_ERR_REGISTER(name, arity) DB_REGISTER(name, arity)
         BCHK_ERR_RELATIONS(DB_ERR_REGISTER)
 #undef DB_REGISTER
 #undef DB_ERR_REGISTER
@@ -71,7 +71,7 @@ constexpr size_t max_arity = 4;
 struct Facts {
 #define COLUMN_DECL(name, arity) std::vector<std::array<Sym, arity>> name;
     BCHK_RELATIONS(COLUMN_DECL)
-#define ERR_COLUMN_DECL(name, arity, text) COLUMN_DECL(name, arity)
+#define ERR_COLUMN_DECL(name, arity) COLUMN_DECL(name, arity)
     BCHK_ERR_RELATIONS(ERR_COLUMN_DECL)
 #undef COLUMN_DECL
 #undef ERR_COLUMN_DECL

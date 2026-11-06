@@ -37,8 +37,8 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
     }
     {
         DL_VARS(Point, Reason);
-        RULE(db.query, db.err_unbodied_fn(Point, Reason) <=
-                           db.err_ptr_missing_role(Point, Reason));
+        RULE(db.query, db.err_unverified(Point, Reason) <=
+                           db.err_unbodied_fn(Point, Reason));
     }
 }
 } // namespace bchk
