@@ -17,11 +17,41 @@
 namespace bchk {
 
 namespace {
-template <size_t N>
+
+static std::string format_err_unbodied_fn(const std::array<Sym, 2> &args,
+                                          const Interner &in) {
+    return std::format("function '{}' has no body", in.lookup(args[1]));
+}
+
+static std::string format_err_ptr_missing_role(const std::array<Sym, 2> &args,
+                                               const Interner &in) {
+    return std::format("pointer '{}' has no borrow role", in.lookup(args[1]));
+}
+
+static std::string format_err_banned_decl(const std::array<Sym, 2> &args,
+                                          const Interner &in) {
+    return std::format("unsupported declaration '{}'", in.lookup(args[1]));
+}
+
+static std::string format_err_internal(const std::array<Sym, 2> &args,
+                                       const Interner &in) {
+    return std::format("internal error: {}", in.lookup(args[1]));
+}
+
+// This formatter is never called because collectReport strips out the
+// err_unverified relations before calling collectErrors. However, the compiler
+// still sees the function because macros and C++ don't mix well and expects the
+// symbol to exist.
+[[maybe_unused]] static std::string
+format_err_unverified(const std::array<Sym, 2> &, const Interner &) {
+    return "";
+}
+
+template <size_t N, typename Formatter>
 void collectErrors(Report &report, const std::string &rel_name,
                    const Interner &interner,
                    const std::vector<std::array<Sym, N>> &facts,
-                   const PointSourceMap &point_loc) {
+                   const PointSourceMap &point_loc, Formatter format) {
     for (const std::array<Sym, N> &f : facts) {
         Error err;
 
@@ -39,7 +69,7 @@ void collectErrors(Report &report, const std::string &rel_name,
             args += interner.lookup(f[i]);
             first = false;
         }
-        err.text = std::format("{}({})", rel_name, args);
+        err.text = format(f, interner);
 
         constexpr size_t place_idx = 0;
         const auto found = point_loc.find(f[place_idx]);
@@ -57,15 +87,17 @@ Report collectReport(const Database &db, const Interner &interner,
     // NOLINTEND(clang-diagnostic-unused-parameter)
     Report report{};
     report.verified = true;
+
 #define COLLECT_NAMED_ERR(name)                                                \
     {                                                                          \
-        const bool verify_err = std::string(#name) == "err_unverified";        \
-        const bool enabled =                                                   \
-            verify_err || disabled.find(#name) == disabled.end();              \
-        if (enabled) {                                                         \
-            collectErrors(report, #name, interner, db.name.peek(), point_loc); \
-            if (!db.name.peek().empty()) {                                     \
-                report.verified = false;                                       \
+        constexpr bool is_unverified = std::string(#name) == "err_unverified"; \
+        if constexpr (!is_unverified) {                                        \
+            if (disabled.find(#name) == disabled.end()) {                      \
+                collectErrors(report, #name, interner, db.name.peek(),         \
+                              point_loc, format_##name);                       \
+                if (!db.name.peek().empty()) {                                 \
+                    report.verified = false;                                   \
+                }                                                              \
             }                                                                  \
         }                                                                      \
     }

@@ -23,7 +23,8 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
                            db.banned_decl(Point, Reason));
     }
 
-/* The below rules collect the various error types into the generic err_unverified collection */
+    /* The below rules collect the various error types into the generic
+     * err_unverified collection */
     {
         DL_VARS(Point, Reason);
         RULE(db.query, db.err_unverified(Point, Reason) <=
