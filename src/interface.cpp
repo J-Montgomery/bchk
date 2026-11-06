@@ -38,6 +38,76 @@ static std::string format_err_internal(const std::array<Sym, 2> &args,
     return std::format("internal error: {}", in.lookup(args[1]));
 }
 
+static std::string format_err_uaf(const std::array<Sym, 2> &args,
+                                  const Interner &in) {
+    return std::format("uaf: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_leak(const std::array<Sym, 2> &args,
+                                   const Interner &in) {
+    return std::format("leak: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_double_free(const std::array<Sym, 2> &args,
+                                          const Interner &in) {
+    return std::format("double free: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_double_handoff(const std::array<Sym, 2> &args,
+                                             const Interner &in) {
+    return std::format("double handoff: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_dangling_borrow(const std::array<Sym, 2> &args,
+                                              const Interner &in) {
+    return std::format("dangling borrow: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_dangling_ret(const std::array<Sym, 2> &args,
+                                           const Interner &in) {
+    return std::format("dangling ret: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_use_after_move(const std::array<Sym, 2> &args,
+                                             const Interner &in) {
+    return std::format("use after move: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_borrow_moved(const std::array<Sym, 2> &args,
+                                           const Interner &in) {
+    return std::format("borrow_moved {}", in.lookup(args[1]));
+}
+
+static std::string format_err_mut_conflict(const std::array<Sym, 2> &args,
+                                           const Interner &in) {
+    return std::format("mut conflict: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_freed_borrow(const std::array<Sym, 2> &args,
+                                           const Interner &in) {
+    return std::format("freed borrow: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_mutated_borrow(const std::array<Sym, 2> &args,
+                                             const Interner &in) {
+    return std::format("mutated borrow: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_static_borrow_esc(const std::array<Sym, 2> &args,
+                                                const Interner &in) {
+    return std::format("Static borrow esc: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_contract_mismatch(const std::array<Sym, 2> &args,
+                                                const Interner &in) {
+    return std::format("contract mismatch: {}", in.lookup(args[1]));
+}
+
+static std::string format_err_unbound_ptr(const std::array<Sym, 2> &args,
+                                          const Interner &in) {
+    return std::format("unbound ptr: {}", in.lookup(args[1]));
+}
+
 // This formatter is never called because collectReport strips out the
 // err_unverified relations before calling collectErrors. However, the compiler
 // still sees the function because macros and C++ don't mix well and expects the

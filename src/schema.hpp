@@ -20,4 +20,18 @@
     X(err_unbodied_fn, 2)                                                      \
     X(err_banned_decl, 2)                                                      \
     X(err_ptr_missing_role, 2)                                                 \
-    X(err_internal, 2)
+    X(err_internal, 2)                                                         \
+    X(err_uaf, 2)                                                              \
+    X(err_leak, 2)                                                             \
+    X(err_double_free, 2)                                                      \
+    X(err_double_handoff, 2)                                                   \
+    X(err_dangling_borrow, 2)                                                  \
+    X(err_dangling_ret, 2)                                                     \
+    X(err_use_after_move, 2)                                                   \
+    X(err_borrow_moved, 2)                                                     \
+    X(err_mut_conflict, 2)                                                     \
+    X(err_freed_borrow, 2)                                                     \
+    X(err_mutated_borrow, 2)                                                   \
+    X(err_static_borrow_esc, 2)                                                \
+    X(err_contract_mismatch, 2)                                                \
+    X(err_unbound_ptr, 2)
