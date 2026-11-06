@@ -63,14 +63,11 @@ class FactExtractorVisitor
                 } else {
                     // TODO: We don't need to error if we can see a function
                     // summary
-                    llvm::errs() << "ERROR: Function " << fd->getNameAsString()
-                                 << " lacks a body\n";
 
                     const auto fname = fd->getNameAsString();
-                    verificationError(
-                        "fndecl " + fname, fd->getLocation(),
-                        std::format(err::verification::k_fn_missing_body,
-                                    fname));
+                    Sym pt = control.point(std::format("fn {}", fname));
+                    recordPointLoc(pt, fd->getLocation());
+                    facts.unbodied_fn.push_back({pt, interner.intern(fname)});
                     continue;
                 }
             }
@@ -79,10 +76,10 @@ class FactExtractorVisitor
                     clang::dyn_cast<clang::RecordDecl>(decl)) {
                 if (r->isUnion()) {
                     const auto uname = r->getNameAsString();
-                    verificationError(
-                        "union decl " + uname, r->getLocation(),
-                        std::format(err::verification::k_banned_decl, uname,
-                                    "union"));
+                    Sym pt = control.point(std::format("union {}", uname));
+                    recordPointLoc(pt, r->getLocation());
+                    facts.banned_decl.push_back({pt, interner.intern(uname)});
+
                     continue;
                 }
             }
@@ -91,10 +88,9 @@ class FactExtractorVisitor
                     clang::dyn_cast<clang::TypedefDecl>(decl)) {
                 if (isUnionType(td->getUnderlyingType())) {
                     const auto uname = td->getNameAsString();
-                    verificationError(
-                        "union decl " + uname, td->getLocation(),
-                        std::format(err::verification::k_banned_decl, uname,
-                                    "union"));
+                    Sym pt = control.point(std::format("union {}", uname));
+                    recordPointLoc(pt, td->getLocation());
+                    facts.banned_decl.push_back({pt, interner.intern(uname)});
                     continue;
                 }
             }
@@ -106,10 +102,10 @@ class FactExtractorVisitor
                         clang::VarDecl::TLSKind::TLS_None ||
                     type->isAtomicType()) {
                     const auto varname = global_var->getNameAsString();
-                    verificationError(
-                        "var decl " + varname, global_var->getLocation(),
-                        std::format(err::verification::k_banned_decl, varname,
-                                    "thread-local or atomic"));
+                    Sym pt =
+                        control.point(std::format("tls/atomic {}", varname));
+                    recordPointLoc(pt, global_var->getLocation());
+                    facts.banned_decl.push_back({pt, interner.intern(varname)});
                 }
                 continue;
             }
@@ -154,10 +150,11 @@ class FactExtractorVisitor
                     const auto pname = param->getNameAsString();
                     llvm::errs() << "ERROR: param " << pname
                                  << " is an unannotated pointer\n";
-                    verificationError(
-                        "missing role " + pname, param->getLocation(),
-                        std::format(err::verification::k_ptr_missing_role,
-                                    pname));
+                    Sym pt = control.point(std::format("ptr {}", pname));
+                    recordPointLoc(pt, param->getLocation());
+                    facts.ptr_missing_role.push_back(
+                        {pt, interner.intern(pname)});
+                    recordPointLoc(pt, fd->getLocation());
                 }
             }
         }
@@ -257,13 +254,6 @@ class FactExtractorVisitor
                 if (tag != "bc_owner" && tag != "bc_borrow" &&
                     tag != "bc_mut_borrow")
                     continue;
-                // if (!role.empty()) {
-                //     const auto declname = decl->getNameAsString();
-                //     verificationError(
-                //         "role conflict " + declname, decl->getLocation(),
-                //         std::format(err::verification::k_role_conflict,
-                //                     declname));
-                // }
 
                 role = tag;
             }
@@ -371,14 +361,6 @@ class FactExtractorVisitor
             "{}:{}:{}", pres.getFilename(), pres.getLine(), pres.getColumn());
         llvm::errs() << "ERROR: " << error_str << " at " << location_str
                      << "\n";
-    }
-
-    void verificationError(const std::string &pt_name,
-                           clang::SourceLocation loc,
-                           const std::string &reason) {
-        Sym pt = control.point(pt_name);
-        recordPointLoc(pt, loc);
-        facts.err_unverified.push_back({pt, interner.intern(reason)});
     }
 
     static bool isUnionType(clang::QualType qt) {

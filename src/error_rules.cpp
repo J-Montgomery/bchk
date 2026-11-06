@@ -9,6 +9,21 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
 
     {
         DL_VARS(Point, Reason);
+        RULE(db.query, db.err_unverified(Point, Reason) <=
+                           db.ptr_missing_role(Point, Reason));
+    }
+    {
+        DL_VARS(Point, Reason);
+        RULE(db.query,
+             db.err_unverified(Point, Reason) <= db.unbodied_fn(Point, Reason));
+    }
+    {
+        DL_VARS(Point, Reason);
+        RULE(db.query,
+             db.err_unverified(Point, Reason) <= db.banned_decl(Point, Reason));
+    }
+    {
+        DL_VARS(Point, Reason);
         RULE(db.query, db.any_err(Point) <= db.err_unverified(Point, Reason));
     }
 }
