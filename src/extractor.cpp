@@ -513,7 +513,8 @@ void FactExtractorVisitor::emitDeclFacts(const clang::Decl *decl, Sym place,
 
     if (const auto *var = dyn_cast<VarDecl>(decl)) {
         const bool tls = var->getTLSKind() != VarDecl::TLS_None;
-        const bool atomic = qt->isAtomicType();
+        const bool atomic =
+            qt->isAtomicType() || qt->getPointeeType()->isAtomicType();
         if (tls || atomic) {
             const std::string name = var->getNameAsString();
             const Sym decl_point = control.point("decl:" + name);
