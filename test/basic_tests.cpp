@@ -54,36 +54,47 @@ TEST(PtrAnnotations, PointerParamWithRoleValidates) {
 TEST(BannedDecl, GlobalAtomicsError) {
     expectRejected("_Atomic int a;", "err_banned_decl");
     expectRejected("_Atomic int *a;", "err_banned_decl");
+    expectRejected("_Atomic int *a;", "err_ptr_missing_role");
 
     expectRejected("_Atomic int a = 0;", "err_banned_decl");
     expectRejected("_Atomic int *a = 0;", "err_banned_decl");
+    expectRejected("_Atomic int *a = 0;", "err_ptr_missing_role");
 
     expectRejected("extern _Atomic int a;", "err_banned_decl");
     expectRejected("extern _Atomic int *a;", "err_banned_decl");
+    expectRejected("extern _Atomic int *a;", "err_ptr_missing_role");
 
     expectRejected("static _Atomic int a;", "err_banned_decl");
     expectRejected("static _Atomic int *a;", "err_banned_decl");
+    expectRejected("static _Atomic int *a;", "err_ptr_missing_role");
 
     expectRejected("static _Atomic int a;", "err_banned_decl");
     expectRejected("static _Atomic int *a;", "err_banned_decl");
+    expectRejected("static _Atomic int *a;", "err_ptr_missing_role");
 
     expectRejected("static _Atomic int a = 0;", "err_banned_decl");
     expectRejected("static _Atomic int *a = 0;", "err_banned_decl");
+    expectRejected("static _Atomic int *a = 0;", "err_ptr_missing_role");
 }
 
 TEST(BannedDecl, LocalAtomicsError) {
     expectRejected("void f() { _Atomic int a; }", "err_banned_decl");
     expectRejected("void f() { _Atomic int *a; }", "err_banned_decl");
+    expectRejected("void f() { _Atomic int *a; }", "err_ptr_missing_role");
 
     expectRejected("void f() { _Atomic int a = 0; }", "err_banned_decl");
     expectRejected("void f() { _Atomic int *a = 0; }", "err_banned_decl");
+    expectRejected("void f() { _Atomic int *a = 0; }", "err_ptr_missing_role");
 
     expectRejected("void f() { static _Atomic int a; }", "err_banned_decl");
     expectRejected("void f() { static _Atomic int *a; }", "err_banned_decl");
+    expectRejected("void f() { _Atomic int *a = 0; }", "err_ptr_missing_role");
 
     expectRejected("void f() { static _Atomic int a = 0; }", "err_banned_decl");
     expectRejected("void f() { static _Atomic int *a = 0; }",
                    "err_banned_decl");
+    expectRejected("void f() { static _Atomic int *a = 0; }",
+                   "err_ptr_missing_role");
 }
 
 TEST(BannedDecl, GlobalUnionsError) {
