@@ -15,13 +15,12 @@
     X(global_decl, 1)                                                          \
     X(global_var, 1)                                                           \
     X(global_entry, 2)                                                         \
-    X(unbodied_fn, 2)                                                          \
     X(ptr_missing_role, 2)                                                     \
     X(union_decl, 2)                                                           \
     X(struct_decl, 2)                                                          \
     X(decl_kind, 3)                                                            \
     X(call_result_place, 2)                                                    \
-    X(fn_decl, 1)                                                              \
+    X(fn_decl, 2)                                                              \
     X(fn_variadic, 1)                                                          \
     X(fn_lifetime_bound, 2)                                                    \
     X(param_entry, 3)                                                          \

@@ -15,9 +15,9 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
                            db.ptr_missing_role(Point, Reason));
     }
     {
-        DL_VARS(Point, Reason);
-        RULE(db.query, db.err_unbodied_fn(Point, Reason) <=
-                           db.unbodied_fn(Point, Reason));
+        DL_VARS(Point, Fn);
+        RULE(db.query, db.err_unbodied_fn(Point, Fn) <= db.fn_decl(Fn, Point),
+             !db.fn_defined(Fn));
     }
     {
         DL_VARS(Point, Reason);

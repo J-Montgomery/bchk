@@ -178,7 +178,9 @@ void FactExtractorVisitor::handleFunction(const FunctionDecl *fd) {
     const Sym fn = interner.intern(fd->getNameAsString());
 
     if (declared_fn.insert(fn).second) {
-        facts.fn_decl.push_back({fn});
+        const Sym decl_pt = control.point("fn-decl:" + fd->getNameAsString());
+        recordPointLoc(decl_pt, fd);
+        facts.fn_decl.push_back({fn, decl_pt});
     }
 
     if (fd->isVariadic() && variadic_fn.insert(fn).second) {
