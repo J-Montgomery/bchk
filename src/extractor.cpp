@@ -192,13 +192,6 @@ void FactExtractorVisitor::handleFunction(const FunctionDecl *fd) {
         for (const clang::ParmVarDecl *param : fd->parameters()) {
             if (isPointerType(param->getType())) {
                 facts.fn_lifetime_bound.push_back({fn, placeForVar(param)});
-                if (!hasRole(param)) {
-                    const Sym pt = control.point("ptr-missing-role:" +
-                                                 param->getNameAsString());
-                    recordPointLoc(pt, param);
-                    facts.ptr_missing_role.push_back(
-                        {pt, interner.intern(param->getNameAsString())});
-                }
             }
 
             // TODO: Handle structs passed by copy containing pointers?
@@ -251,6 +244,13 @@ void FactExtractorVisitor::extractFunction(const FunctionDecl *fd, Sym fn) {
             typeContainsPointer(param->getType())) {
             declKind(place, "struct containing pointer",
                      param->getNameAsString());
+        }
+        if (!hasRole(param)) {
+            const Sym pt =
+                control.point("ptr-missing-role:" + param->getNameAsString());
+            recordPointLoc(pt, param);
+            facts.ptr_missing_role.push_back(
+                {pt, interner.intern(param->getNameAsString())});
         }
     }
 
@@ -541,6 +541,15 @@ void FactExtractorVisitor::emitDeclFacts(const clang::Decl *decl, Sym place,
 
     if (isPointerType(qt)) {
         facts.pointer_decl.push_back({place});
+
+        if (!hasRole(decl)) {
+            const auto *named_decl = dyn_cast<clang::NamedDecl>(decl);
+            const std::string name =
+                named_decl ? named_decl->getNameAsString() : "";
+            const Sym pt = control.point("ptr-missing-role:" + name);
+            recordPointLoc(pt, decl);
+            facts.ptr_missing_role.push_back({pt, interner.intern(name)});
+        }
     }
 
     for (const clang::Attr *attr : decl->attrs()) {
