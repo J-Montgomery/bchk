@@ -2,54 +2,39 @@
 #include <string>
 #include <vector>
 
-#include "interface.hpp"
-namespace bchk {
-
-namespace {
-
-bool relationPresent(const Report &report, const std::string &relation) {
-    for (const Error &error : report.errors) {
-        if (error.relation == relation) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-const std::string include_str = "#include <borrowck.h>\n";
-std::vector<std::string> args = {std::string("-I") + BCHK_TEST_INCLUDE_DIR};
-
-[[maybe_unused]] void expectSafe(const std::string &source) {
-    const Report report = analyzeSrcString(include_str + source, args);
-    EXPECT_TRUE(report.verified);
-    EXPECT_TRUE(report.errors.empty());
-}
-
-[[maybe_unused]] void expectRejected(const std::string &source,
-                                     const std::string &relation) {
-    const Report report = analyzeSrcString(include_str + source, args);
-    EXPECT_FALSE(report.verified);
-    EXPECT_TRUE(relationPresent(report, relation));
-}
-
-[[maybe_unused]] void expectWarned(const std::string &source,
-                                   const std::string &relation) {
-    const Report report = analyzeSrcString(include_str + source, args);
-    EXPECT_TRUE(report.verified);
-    EXPECT_TRUE(relationPresent(report, relation));
-}
-
-} // namespace
+#include "test_utils.hpp"
 
 TEST(Corpus, SanityCheck) { expectSafe("int f(){ return 0; }"); }
 
-TEST(Corpus, NoBodyGeneratesUnverified) {
+TEST(FnDecls, NoBodyGeneratesUnverified) {
     expectRejected("int f();", "err_unbodied_fn");
 }
 
-TEST(Corpus, PointerWithRoleValidates) {
+TEST(FnDecls, PrototypesDontGenUnverified) {
+    expectSafe("int f(); int f() { return 0; }");
+}
+
+TEST(FnDecls, DuplicateProtosGenerateOneError) {
+    const auto report = expectRejected("int f(); int f();", "err_unbodied_fn");
+    EXPECT_EQ(report.errors.size(), 1);
+}
+
+TEST(FnDecls, MultipleProtosGenerateMultipleErrors) {
+    const auto report = expectRejected("int f(); int g();", "err_unbodied_fn");
+    EXPECT_EQ(report.errors.size(), 2);
+}
+
+TEST(PtrAnnotations, PointerWithRoleValidates) {
     expectSafe("int f(char OWNER *ptr) {}");
 }
 
-} // namespace bchk
+TEST(BannedDecl, GlobalAtomicsError) {
+    expectRejected("_Atomic int a;", "err_banned_decl");
+    expectRejected("_Atomic int *a;", "err_banned_decl");
+
+    expectRejected("_Atomic int a = 0;", "err_banned_decl");
+    expectRejected("_Atomic int *a = 0;", "err_banned_decl");
+
+    expectRejected("extern _Atomic int a;", "err_banned_decl");
+    expectRejected("extern _Atomic int *a;", "err_banned_decl");
+}
