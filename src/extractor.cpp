@@ -306,6 +306,17 @@ void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
                     element.getAs<clang::CFGStmt>()) {
                 const Sym pt = mintPoint(stmt->getStmt());
 
+                if (const auto *ds =
+                        dyn_cast<clang::DeclStmt>(stmt->getStmt())) {
+                    for (const clang::Decl *d : ds->decls()) {
+                        const auto *var_decl = dyn_cast<VarDecl>(d);
+                        if (!var_decl)
+                            continue;
+                        const Sym place = placeForVar(var_decl);
+                        if (var_decl->hasInit())
+                            facts.var_init.push_back({place});
+                    }
+                }
                 if (first < 0)
                     first = pt;
                 if (last >= 0)
