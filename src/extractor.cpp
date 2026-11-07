@@ -192,7 +192,15 @@ void FactExtractorVisitor::handleFunction(const FunctionDecl *fd) {
         for (const clang::ParmVarDecl *param : fd->parameters()) {
             if (isPointerType(param->getType())) {
                 facts.fn_lifetime_bound.push_back({fn, placeForVar(param)});
+                if (!hasRole(param)) {
+                    const Sym pt = control.point("ptr-missing-role:" +
+                                                 param->getNameAsString());
+                    recordPointLoc(pt, param);
+                    facts.ptr_missing_role.push_back(
+                        {pt, interner.intern(param->getNameAsString())});
+                }
             }
+
             // TODO: Handle structs passed by copy containing pointers?
             // Probably better to do that at the call site...
         }

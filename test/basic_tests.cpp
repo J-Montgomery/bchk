@@ -25,11 +25,11 @@ TEST(FnDecls, MultipleProtosGenerateMultipleErrors) {
 }
 
 TEST(PtrAnnotations, PointerParamWithoutRoleFails) {
-    expectRejected("int f(char *ptr) {}", "err_ptr_missing_role");
+    expectRejected("int f(char *ptr) { return 0; }", "err_ptr_missing_role");
 
-    expectRejected("int f(char OWNER *ptr1, char *ptr2) {}",
+    expectRejected("int f(char OWNER *ptr1, char *ptr2) { return 0; }",
                    "err_ptr_missing_role");
-    expectRejected("int f(char *ptr1, char OWNER *ptr2) {}",
+    expectRejected("int f(char *ptr1, char OWNER *ptr2) { return 0; }",
                    "err_ptr_missing_role");
 }
 
