@@ -5,15 +5,32 @@
     X(point, 1)                                                                \
     X(cfg_edge, 2)                                                             \
     X(call_site, 2)                                                            \
+    X(fn_defined, 1)                                                           \
     X(fn_entry, 2)                                                             \
     X(fn_exit, 2)                                                              \
+    X(fn_noreturn, 1)                                                          \
     X(role, 2)                                                                 \
     X(pointer_decl, 1)                                                         \
     X(var_init, 1)                                                             \
     X(global_decl, 1)                                                          \
-    X(banned_decl, 2)                                                          \
+    X(global_var, 1)                                                           \
+    X(global_entry, 2)                                                         \
     X(unbodied_fn, 2)                                                          \
-    X(ptr_missing_role, 2)
+    X(ptr_missing_role, 2)                                                     \
+    X(union_decl, 2)                                                           \
+    X(struct_decl, 2)                                                          \
+    X(decl_kind, 3)                                                            \
+    X(call_result_place, 2)                                                    \
+    X(fn_decl, 1)                                                              \
+    X(fn_variadic, 1)                                                          \
+    X(fn_lifetime_bound, 2)                                                    \
+    X(param_entry, 3)                                                          \
+    X(param_idx, 3)                                                            \
+    X(knr_promoted, 2)                                                         \
+    X(loop_back_edge, 2)                                                       \
+    X(lifetime_end, 2)                                                         \
+    X(assume_init, 1)                                                          \
+    X(place_type, 2)
 
 #define BCHK_ERR_RELATIONS(X)                                                  \
     X(err_unverified, 2)                                                       \

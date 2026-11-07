@@ -29,7 +29,10 @@
 namespace bchk {
 
 using clang::FunctionDecl;
+using clang::RecordDecl;
 using clang::Stmt;
+using clang::TypedefDecl;
+using clang::VarDecl;
 
 class FactExtractorVisitor
     : public clang::RecursiveASTVisitor<FactExtractorVisitor> {
@@ -41,25 +44,35 @@ class FactExtractorVisitor
           places(interner, facts) {}
 
     bool VisitTranslationUnitDecl(clang::TranslationUnitDecl *tu);
-    bool VisitCallExpr(clang::CallExpr *ce);
 
   private:
-    void extractFunction(const FunctionDecl *fd);
+    void handleUnion(const RecordDecl *rd);
+    void handleUnion(const TypedefDecl *td);
+    void handleGlobal(const VarDecl *global);
+    void handleFunction(const FunctionDecl *fd);
+
+    void extractFunction(const FunctionDecl *fd, Sym fn);
     void emitCfgEdges(const FunctionDecl *fd, Sym entry, Sym exit);
 
     Sym mintPoint(const Stmt *stmt);
-    Sym placeForVar(const clang::VarDecl *var_decl);
-
-    std::string roleOf(const clang::ValueDecl *decl) const;
-    std::string calleeName(const clang::CallExpr *ce) const;
-    std::string src(const Stmt *stmt) const;
+    Sym placeForVar(const VarDecl *var_decl);
 
     static std::string getAnnotation(const clang::Decl *decl);
     static bool isUnionType(clang::QualType qt);
 
     void recordSourceRangeLoc(Sym point, const clang::SourceRange range);
     void recordPointLoc(Sym point, const clang::Decl *decl);
-    void logConsoleError(std::string error_str, clang::SourceLocation loc);
+    void declKind(Sym place, std::string_view kind, std::string_view name);
+    Sym typeSym(clang::QualType qt);
+    Sym argIndex(size_t index);
+
+    bool isPointerType(clang::QualType qt) const;
+    bool typeContainsPointer(clang::QualType qt) const;
+    bool arrayElementContainsPointer(clang::QualType qt) const;
+    bool hasLifetimeBound(const FunctionDecl *fd) const;
+    bool hasRole(const clang::Decl *decl) const;
+
+    void emitDeclFacts(const clang::Decl *decl, Sym place, clang::QualType qt);
 
     bool isAddressOf(const clang::Expr *expr) const;
     const char *tag(const Stmt *stmt);
@@ -70,6 +83,7 @@ class FactExtractorVisitor
     PointSourceMap &point_loc;
 
     std::string current_fn;
+    Sym current_fn_sym = -1;
     Sym fn_exit = -1;
     Sym current_point = -1;
 
@@ -78,8 +92,15 @@ class FactExtractorVisitor
 
     std::unordered_map<const Stmt *, Sym> stmt_pt;
     std::unordered_map<const clang::ValueDecl *, Sym> var_places;
+    std::unordered_map<std::string, Sym> place_cache;
+    std::unordered_map<std::string, Sym> type_cache;
 
+    // These are used to de-duplicate how many objs we track
+    // so we don't waste time processing unnecessary facts
+    // on the datalog side
     std::unordered_set<Sym> declared_fn;
+    std::unordered_set<Sym> variadic_fn;
+    std::unordered_set<Sym> emitted_decl_facts;
 };
 
 /****************** Extractor public visitors ******************/
@@ -87,111 +108,155 @@ class FactExtractorVisitor
 bool FactExtractorVisitor::VisitTranslationUnitDecl(
     clang::TranslationUnitDecl *tu) {
     for (const clang::Decl *decl : tu->decls()) {
-        if (const FunctionDecl *fd = clang::dyn_cast<FunctionDecl>(decl)) {
-            if (fd->doesThisDeclarationHaveABody()) {
-                extractFunction(fd);
-            } else {
-                // TODO: We don't need to error if we can see a function
-                // summary
-
-                const auto fname = fd->getNameAsString();
-                Sym pt = control.point(std::format("fn {}", fname));
-                recordPointLoc(pt, fd);
-                facts.unbodied_fn.push_back({pt, interner.intern(fname)});
-                continue;
+        if (const auto *fd = dyn_cast<FunctionDecl>(decl)) {
+            handleFunction(fd);
+        } else if (const auto *global = dyn_cast<VarDecl>(decl)) {
+            handleGlobal(global);
+        } else if (const auto *record = dyn_cast<RecordDecl>(decl)) {
+            if (record->isUnion()) {
+                handleUnion(record);
             }
-        }
-
-        if (const clang::RecordDecl *r =
-                clang::dyn_cast<clang::RecordDecl>(decl)) {
-            if (r->isUnion()) {
-                const auto uname = r->getNameAsString();
-                Sym pt = control.point(std::format("union {}", uname));
-                recordPointLoc(pt, r);
-                facts.banned_decl.push_back({pt, interner.intern(uname)});
-
-                continue;
+            // TODO: handle struct defs?
+        } else if (const auto *typedef_decl = dyn_cast<TypedefDecl>(decl)) {
+            if (isUnionType(typedef_decl->getUnderlyingType())) {
+                handleUnion(typedef_decl);
             }
-        }
-
-        if (const clang::TypedefDecl *td =
-                clang::dyn_cast<clang::TypedefDecl>(decl)) {
-            if (isUnionType(td->getUnderlyingType())) {
-                const auto uname = td->getNameAsString();
-                Sym pt = control.point(std::format("union {}", uname));
-                recordPointLoc(pt, td);
-                facts.banned_decl.push_back({pt, interner.intern(uname)});
-                continue;
-            }
-        }
-
-        if (const clang::VarDecl *global_var =
-                clang::dyn_cast<clang::VarDecl>(decl)) {
-            const clang::QualType type = global_var->getType();
-            if (global_var->getTLSKind() != clang::VarDecl::TLSKind::TLS_None ||
-                type->isAtomicType()) {
-                const auto varname = global_var->getNameAsString();
-                Sym pt = control.point(std::format("tls/atomic {}", varname));
-                recordPointLoc(pt, global_var);
-                facts.banned_decl.push_back({pt, interner.intern(varname)});
-            }
-            continue;
         }
     }
 
-    return true;
-}
-
-bool FactExtractorVisitor::VisitCallExpr(clang::CallExpr *ce) {
-    if (current_point >= 0) {
-        std::string name = calleeName(ce);
-        control.call_site(current_point, name);
-    }
-
-    return true;
+    return false;
 }
 
 /**************** Extractor private functions ****************/
 
-void FactExtractorVisitor::extractFunction(const FunctionDecl *fd) {
+void FactExtractorVisitor::handleUnion(const RecordDecl *rd) {
+    const auto name = rd->getNameAsString();
+    const Sym at = control.point("union:" + name);
+    recordPointLoc(at, rd);
+    facts.union_decl.push_back({at, interner.intern(name)});
+}
+
+void FactExtractorVisitor::handleUnion(const TypedefDecl *td) {
+    const auto name = td->getNameAsString();
+    const Sym at = control.point("union:" + name);
+    recordPointLoc(at, td);
+    facts.union_decl.push_back({at, interner.intern(name)});
+}
+
+void FactExtractorVisitor::handleGlobal(const VarDecl *global) {
+    const Sym place = placeForVar(global);
+    facts.global_var.push_back({place});
+
+    const auto varname = global->getNameAsString();
+    const Sym entry = control.point("global-entry:" + varname);
+    recordPointLoc(entry, global);
+    facts.global_entry.push_back({place, entry});
+
+    if (global->getTLSKind() != VarDecl::TLS_None) {
+        declKind(place, "tls", varname);
+    }
+
+    if (global->getType()->isAtomicType()) {
+        declKind(place, "atomic", varname);
+    }
+
+    if (typeContainsPointer(global->getType()) &&
+        !isPointerType(global->getType())) {
+        declKind(place, "global pointer type", varname);
+    }
+
+    if (global->hasInit()) {
+        facts.var_init.push_back({place});
+        current_fn.clear();
+        current_fn_sym = -1;
+        fn_exit = -1;
+        current_point = entry;
+
+        // TODO: exprs
+        // const Sym value = decodeExpr(global->getInit(), entry);
+        // eventBind(place, value, entry);
+        if (clang::isa<clang::CallExpr>(
+                global->getInit()->IgnoreParenImpCasts())) {
+            facts.call_result_place.push_back({entry, place});
+        }
+    }
+}
+
+void FactExtractorVisitor::handleFunction(const FunctionDecl *fd) {
+    const Sym fn = interner.intern(fd->getNameAsString());
+
+    if (declared_fn.insert(fn).second) {
+        facts.fn_decl.push_back({fn});
+    }
+
+    if (fd->isVariadic() && variadic_fn.insert(fn).second) {
+        facts.fn_variadic.push_back({fn});
+    }
+
+    // TODO: get the param idx to handle lifetime bounds properly
+    if (hasLifetimeBound(fd)) {
+        for (const clang::ParmVarDecl *param : fd->parameters()) {
+            if (isPointerType(param->getType())) {
+                facts.fn_lifetime_bound.push_back({fn, placeForVar(param)});
+            }
+            // TODO: Handle structs passed by copy containing pointers?
+            // Probably better to do that at the call site...
+        }
+    }
+
+    // TODO: test unbodied fn errors across TUs
+    if (fd->doesThisDeclarationHaveABody()) {
+        extractFunction(fd, fn);
+    }
+}
+
+void FactExtractorVisitor::extractFunction(const FunctionDecl *fd, Sym fn) {
     current_fn = fd->getNameAsString();
+    current_fn_sym = fn;
+
     const Sym entry = control.point("entry:" + current_fn);
     const Sym exit = control.point("exit:" + current_fn);
     fn_exit = exit;
 
-    // TODO: This doesn't work after the interface change for recordPointLoc
     recordPointLoc(entry, fd);
     recordPointLoc(exit, fd);
-    control.begin_fn(current_fn, entry, exit);
+    // control.begin_fn(current_fn, entry, exit);
+
+    facts.fn_defined.push_back({fn});
+    facts.fn_entry.push_back({fn, entry});
+    facts.fn_exit.push_back({fn, exit});
+
+    if (fd->isNoReturn()) {
+        facts.fn_noreturn.push_back({fn});
+    }
 
     // Gather the param annotations
-    for (const clang::ParmVarDecl *param : fd->parameters()) {
-        const Sym param_place = placeForVar(param);
-        const std::string role = roleOf(param);
-        if (!role.empty()) {
-            places.role(param_place, role);
-        } else {
-            clang::QualType type = param->getType();
-            // TODO: isPointerType doesn't handle member pointers if this
-            // ever supports C++
-            if (type->isPointerType()) {
-                const auto pname = param->getNameAsString();
-                Sym pt = control.point(std::format("ptr {}", pname));
-                recordPointLoc(pt, param);
-                facts.ptr_missing_role.push_back({pt, interner.intern(pname)});
-            }
+    for (unsigned i = 0; i < fd->getNumParams(); ++i) {
+        const clang::ParmVarDecl *param = fd->getParamDecl(i);
+        const Sym place = placeForVar(param);
+        facts.param_entry.push_back({place, fn, entry});
+        facts.param_idx.push_back({place, argIndex(i)});
+
+        if (param->isKNRPromoted()) {
+            facts.knr_promoted.push_back({place, fn});
+        }
+
+        if (arrayElementContainsPointer(param->getType())) {
+            declKind(place, "array containing pointers",
+                     param->getNameAsString());
+        }
+        if (param->getType()->isRecordType() &&
+            typeContainsPointer(param->getType())) {
+            declKind(place, "struct containing pointer",
+                     param->getNameAsString());
         }
     }
 
+    current_point = entry;
     emitCfgEdges(fd, entry, exit);
-    if (fd->getBody()) {
-        TraverseStmt(fd->getBody());
-    } else {
-        const auto fname = fd->getNameAsString();
-        Sym pt = control.point(std::format("fn {}", fname));
-        recordPointLoc(pt, fd);
-        facts.unbodied_fn.push_back({pt, interner.intern(fname)});
-    }
+
+    // TODO: stmts
+    // decodeStmt(fd->getBody());
 }
 
 void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
@@ -234,33 +299,52 @@ void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
 
         for (clang::CFGBlock::const_iterator it = block->begin();
              it != block->end(); it++) {
+            const clang::CFGElement element = *it;
             if (const std::optional<clang::CFGStmt> stmt =
-                    it->getAs<clang::CFGStmt>()) {
-                const Sym p = mintPoint(stmt->getStmt());
-                if (first < 0)
-                    first = p;
-                if (last >= 0)
-                    facts.cfg_edge.push_back({last, p});
+                    element.getAs<clang::CFGStmt>()) {
+                const Sym pt = mintPoint(stmt->getStmt());
 
-                last = p;
-                current_point = p;
+                if (first < 0)
+                    first = pt;
+                if (last >= 0)
+                    facts.cfg_edge.push_back({last, pt});
+
+                last = pt;
+            } else if (const std::optional<clang::CFGLifetimeEnds> lifetime =
+                           element.getAs<clang::CFGLifetimeEnds>()) {
+                const VarDecl *var_decl = lifetime->getVarDecl();
+                if (var_decl == nullptr) {
+                    continue;
+                }
+                const Sym pt = control.point("lifetime-end:" +
+                                             var_decl->getNameAsString());
+                if (first < 0) {
+                    first = pt;
+                }
+                if (last >= 0) {
+                    facts.cfg_edge.push_back({last, pt});
+                }
+
+                last = pt;
+                facts.lifetime_end.push_back({placeForVar(var_decl), pt});
             }
-            // TODO: handle failure to get CFG stmt?
         }
 
-        if (const Stmt *term = block->getTerminatorStmt()) {
-            const Sym p = mintPoint(term);
+        if (const Stmt *terminator = block->getTerminatorStmt()) {
+            const Sym pt = mintPoint(terminator);
             if (first < 0)
-                first = p;
+                first = pt;
             if (last >= 0)
-                facts.cfg_edge.push_back({last, p});
+                facts.cfg_edge.push_back({last, pt});
 
-            last = p;
+            last = pt;
         }
 
         if (first < 0) {
-            first = last = control.point("block");
+            first = control.point("block");
+            last = first;
         }
+
         head[block] = first;
         tail[block] = last;
     }
@@ -273,90 +357,65 @@ void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
             }
         }
     }
-}
-std::string FactExtractorVisitor::roleOf(const clang::ValueDecl *decl) const {
-    std::string role;
-    for (const clang::Attr *attr : decl->attrs()) {
-        if (const auto *annotated_attr =
-                clang::dyn_cast<clang::AnnotateAttr>(attr)) {
-            std::string tag = annotated_attr->getAnnotation().str();
-            if (tag != "bc_owner" && tag != "bc_borrow" &&
-                tag != "bc_mut_borrow")
-                continue;
 
-            role = tag;
+    std::unordered_map<const Stmt *, const clang::CFGBlock *> hdr_block;
+    for (const clang::CFGBlock *block : *cfg) {
+        if (const Stmt *terminator = block->getTerminatorStmt()) {
+            // hasta la vista, baby
+            hdr_block[terminator] = block;
         }
     }
-    return role;
+
+    for (const clang::CFGBlock *block : *cfg) {
+        const Stmt *loop = block->getLoopTarget();
+        if (loop == nullptr) {
+            continue;
+        }
+
+        const auto hdr = hdr_block.find(loop);
+        if (hdr == hdr_block.end()) {
+            continue;
+        }
+
+        facts.loop_back_edge.push_back({head[hdr->second], tail[block]});
+    }
 }
 
-Sym FactExtractorVisitor::placeForVar(const clang::VarDecl *var_decl) {
+Sym FactExtractorVisitor::placeForVar(const VarDecl *var_decl) {
     auto found = var_places.find(var_decl);
     if (found != var_places.end()) {
         return found->second;
     }
 
     Sym place;
-    if (const clang::ParmVarDecl *parm =
+    if (const clang::ParmVarDecl *param =
             clang::dyn_cast<clang::ParmVarDecl>(var_decl)) {
-        place = interner.intern("param:" + current_fn + "#" +
-                                std::to_string(parm->getFunctionScopeIndex()));
+        const auto *owner = dyn_cast<FunctionDecl>(param->getDeclContext());
+        const std::string fn =
+            owner != nullptr ? owner->getNameAsString() : current_fn;
+        place = interner.intern("param:" + fn + "#" +
+                                std::to_string(param->getFunctionScopeIndex()));
         interner.set_display(place, var_decl->getNameAsString());
-    } else { // non-param var
-        const clang::VarDecl *var = clang::dyn_cast<clang::VarDecl>(var_decl);
-        place =
-            (var != nullptr && var->isFileVarDecl())
-                ? interner.intern(
-                      var_decl->getNameAsString()) // deduplicate globals
-                                                   // across all TUs
-                : places.base(
-                      var_decl->getNameAsString()); // give locals a unique id
+    } else if (const auto *var = dyn_cast<VarDecl>(var_decl);
+               var != nullptr && var->isFileVarDecl()) {
+        place = interner.intern(var_decl->getNameAsString());
+    } else {
+        place = interner.freshen(var_decl->getNameAsString());
     }
 
     var_places[var_decl] = place;
-    if (var_decl->hasInit() || (getAnnotation(var_decl) == "bc_init")) {
-        facts.var_init.push_back({place});
+    if (emitted_decl_facts.insert(place).second) {
+        emitDeclFacts(var_decl, place, var_decl->getType());
     }
 
-    if (var_decl->getType()->isPointerType()) {
-        facts.pointer_decl.push_back({place});
-        if (roleOf(var_decl) != "") {
-            places.role(place, roleOf(var_decl));
-        }
-    }
-
-    if (var_decl->hasGlobalStorage()) {
-        // TODO: This also tracks static locals,
-        // so maybe we can lift them to globals?
-        facts.global_decl.push_back({place});
-    }
     return place;
 }
 
-std::string FactExtractorVisitor::calleeName(const clang::CallExpr *ce) const {
-    if (const FunctionDecl *fd = ce->getDirectCallee()) {
-        return fd->getNameAsString();
-    }
-    const auto *callee = ce->getCallee();
-    return callee ? src(callee) : "?";
-}
-
-std::string FactExtractorVisitor::src(const Stmt *stmt) const {
-    const clang::SourceRange range = stmt->getSourceRange();
-    if (!range.isValid()) {
-        return "?";
-    }
-    return clang::Lexer::getSourceText(
-               clang::CharSourceRange::getTokenRange(range),
-               context.getSourceManager(), clang::LangOptions())
-        .str();
-}
-
 Sym FactExtractorVisitor::mintPoint(const Stmt *stmt) {
-    const Sym p = control.point(tag(stmt));
-    stmt_pt[stmt] = p;
-    recordSourceRangeLoc(p, stmt->getSourceRange());
-    return p;
+    const Sym pt = control.point(tag(stmt));
+    stmt_pt[stmt] = pt;
+    recordSourceRangeLoc(pt, stmt->getSourceRange());
+    return pt;
 }
 
 void FactExtractorVisitor::recordSourceRangeLoc(
@@ -378,23 +437,10 @@ void FactExtractorVisitor::recordPointLoc(Sym point, const clang::Decl *decl) {
     recordSourceRangeLoc(point, range);
 }
 
-void FactExtractorVisitor::logConsoleError(std::string error_str,
-                                           clang::SourceLocation loc) {
-    if (loc.isInvalid()) {
-        llvm::errs() << "ERROR: " << error_str << " (unknown location)\n";
-        return;
-    }
-
-    const clang::PresumedLoc pres =
-        context.getSourceManager().getPresumedLoc(loc);
-    if (!pres.isValid()) {
-        llvm::errs() << "ERROR: " << error_str << " (invalid location)\n";
-        return;
-    }
-
-    std::string location_str = std::format("{}:{}:{}", pres.getFilename(),
-                                           pres.getLine(), pres.getColumn());
-    llvm::errs() << "ERROR: " << error_str << " at " << location_str << "\n";
+void FactExtractorVisitor::declKind(Sym place, std::string_view kind,
+                                    std::string_view name) {
+    facts.decl_kind.push_back(
+        {place, interner.intern(kind), interner.intern(name)});
 }
 
 bool FactExtractorVisitor::isUnionType(clang::QualType qt) {
@@ -414,10 +460,154 @@ std::string FactExtractorVisitor::getAnnotation(const clang::Decl *decl) {
     }
     return "";
 }
+
+bool FactExtractorVisitor::isPointerType(clang::QualType qt) const {
+    return !qt.isNull() && qt.getCanonicalType()->isPointerType();
+}
+
+bool FactExtractorVisitor::typeContainsPointer(clang::QualType qt) const {
+    const clang::Type *type = qt.getCanonicalType().getTypePtrOrNull();
+    if (type == nullptr) {
+        return false;
+    }
+    if (type->isPointerType()) {
+        return true;
+    }
+    if (const auto *array = dyn_cast<clang::ArrayType>(type)) {
+        return typeContainsPointer(array->getElementType());
+    }
+    if (const auto *record = type->getAs<clang::RecordType>()) {
+        const auto *def = record->getDecl()->getDefinition();
+        if (!def) {
+            return false;
+        }
+
+        for (const clang::FieldDecl *field : record->getDecl()->fields()) {
+            if (typeContainsPointer(field->getType())) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool FactExtractorVisitor::arrayElementContainsPointer(
+    clang::QualType qt) const {
+    const clang::Type *type = qt.getCanonicalType().getTypePtrOrNull();
+    if (type == nullptr) {
+        return false;
+    }
+    if (const auto *array = dyn_cast<clang::ArrayType>(type)) {
+        return typeContainsPointer(array->getElementType());
+    }
+    return false;
+}
+
+void FactExtractorVisitor::emitDeclFacts(const clang::Decl *decl, Sym place,
+                                         clang::QualType qt) {
+    const Sym type = typeSym(qt);
+
+    facts.place_type.push_back({place, type});
+
+    if (isPointerType(qt)) {
+        facts.pointer_decl.push_back({place});
+    }
+
+    for (const clang::Attr *attr : decl->attrs()) {
+        const auto *annotated = dyn_cast<clang::AnnotateAttr>(attr);
+        if (annotated == nullptr)
+            continue;
+
+        const std::string tag = annotated->getAnnotation().str();
+        if (tag == "bc_owner") {
+            facts.role.push_back({place, interner.intern("owner")});
+        } else if (tag == "bc_borrow") {
+            facts.role.push_back({place, interner.intern("borrow")});
+        } else if (tag == "bc_mut_borrow") {
+            facts.role.push_back({place, interner.intern("mut_borrow")});
+        } else if (tag == "bc_init") {
+            facts.assume_init.push_back({place});
+        }
+    }
+}
+
+bool FactExtractorVisitor::hasRole(const clang::Decl *decl) const {
+    for (const clang::Attr *attr : decl->attrs()) {
+        const auto *annotated = dyn_cast<clang::AnnotateAttr>(attr);
+        if (annotated == nullptr) {
+            continue;
+        }
+        const clang::StringRef tag = annotated->getAnnotation();
+        if (tag == "bc_owner" || tag == "bc_borrow" || tag == "bc_mut_borrow") {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FactExtractorVisitor::hasLifetimeBound(const FunctionDecl *fd) const {
+    if (fd->hasAttr<clang::LifetimeBoundAttr>()) {
+        return true;
+    }
+    for (const clang::Attr *attr : fd->attrs()) {
+        const auto *annotated = dyn_cast<clang::AnnotateAttr>(attr);
+        if (annotated != nullptr &&
+            (annotated->getAnnotation() == "bc_lifetime_bound")) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Sym FactExtractorVisitor::typeSym(clang::QualType qt) {
+    const clang::QualType canonical = qt.getCanonicalType();
+    const std::string canonical_name = canonical.getAsString();
+    if (const auto found = type_cache.find(canonical_name);
+        found != type_cache.end()) {
+        return found->second;
+    }
+
+    const Sym type = interner.intern("type:" + canonical_name);
+    type_cache[canonical_name] = type;
+
+    if (canonical->isPointerType()) {
+        declKind(type, "pointer", canonical_name);
+    }
+    if (const auto *record = canonical->getAs<clang::RecordType>()) {
+        if (record->getDecl()->isUnion()) {
+            facts.union_decl.push_back({type, interner.intern(canonical_name)});
+        } else {
+            facts.struct_decl.push_back(
+                {type, interner.intern(canonical_name)});
+        }
+    }
+    if (canonical->isAtomicType()) {
+        declKind(type, "atomic", canonical_name);
+    }
+    if (const auto *array =
+            dyn_cast<clang::ArrayType>(canonical.getTypePtr())) {
+        if (typeContainsPointer(array->getElementType())) {
+            declKind(type, "array containing pointers", canonical_name);
+        }
+    }
+    if (typeContainsPointer(canonical)) {
+        declKind(type, "struct containing pointer", canonical_name);
+    }
+    return type;
+}
+
+Sym FactExtractorVisitor::argIndex(size_t index) {
+    return interner.intern("arg:" + std::to_string(index));
+}
+
 bool FactExtractorVisitor::isAddressOf(const clang::Expr *expr) const {
     const clang::Expr *e = expr->IgnoreParenImpCasts();
-    const clang::UnaryOperator *uo = clang::dyn_cast<clang::UnaryOperator>(e);
-    return uo != nullptr && uo->getOpcode() == clang::UO_AddrOf;
+    if (const clang::UnaryOperator *uo =
+            clang::dyn_cast<clang::UnaryOperator>(e)) {
+        return uo->getOpcode() == clang::UO_AddrOf;
+    }
+
+    return false;
 }
 
 const char *FactExtractorVisitor::tag(const Stmt *stmt) {
