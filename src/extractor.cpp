@@ -152,14 +152,6 @@ void FactExtractorVisitor::handleGlobal(const VarDecl *global) {
     recordPointLoc(entry, global);
     facts.global_entry.push_back({place, entry});
 
-    if (global->getTLSKind() != VarDecl::TLS_None) {
-        declKind(place, "tls", varname);
-    }
-
-    if (global->getType()->isAtomicType()) {
-        declKind(place, "atomic", varname);
-    }
-
     if (typeContainsPointer(global->getType()) &&
         !isPointerType(global->getType())) {
         declKind(place, "global pointer type", varname);
@@ -509,6 +501,22 @@ void FactExtractorVisitor::emitDeclFacts(const clang::Decl *decl, Sym place,
 
     facts.place_type.push_back({place, type});
 
+    if (const auto *var = dyn_cast<VarDecl>(decl)) {
+        const bool tls = var->getTLSKind() != VarDecl::TLS_None;
+        const bool atomic = qt->isAtomicType();
+        if (tls || atomic) {
+            const std::string name = var->getNameAsString();
+            const Sym decl_point = control.point("decl:" + name);
+            recordPointLoc(decl_point, decl);
+            if (tls) {
+                declKind(decl_point, "tls", name);
+            }
+            if (atomic) {
+                declKind(decl_point, "atomic", name);
+            }
+        }
+    }
+
     if (isPointerType(qt)) {
         facts.pointer_decl.push_back({place});
     }
@@ -580,9 +588,6 @@ Sym FactExtractorVisitor::typeSym(clang::QualType qt) {
             facts.struct_decl.push_back(
                 {type, interner.intern(canonical_name)});
         }
-    }
-    if (canonical->isAtomicType()) {
-        declKind(type, "atomic", canonical_name);
     }
     if (const auto *array =
             dyn_cast<clang::ArrayType>(canonical.getTypePtr())) {
