@@ -54,6 +54,10 @@ class FactExtractorVisitor
     void extractFunction(const FunctionDecl *fd, Sym fn);
     void emitCfgEdges(const FunctionDecl *fd, Sym entry, Sym exit);
 
+    void decodeStmt(const Stmt *stmt);
+    void decodeDecl(const clang::DeclStmt *s, Sym point);
+    Sym decodeExpr(const clang::Expr *expr, Sym point);
+
     Sym mintPoint(const Stmt *stmt);
     Sym placeForVar(const VarDecl *var_decl);
 
@@ -65,6 +69,7 @@ class FactExtractorVisitor
     void declKind(Sym place, std::string_view kind, std::string_view name);
     Sym typeSym(clang::QualType qt);
     Sym argIndex(size_t index);
+    Sym stmtPoint(const Stmt *stmt) const;
 
     bool isPointerType(clang::QualType qt) const;
     bool typeContainsPointer(clang::QualType qt) const;
@@ -236,16 +241,16 @@ void FactExtractorVisitor::extractFunction(const FunctionDecl *fd, Sym fn) {
             facts.knr_promoted.push_back({place, fn});
         }
 
-        if (arrayElementContainsPointer(param->getType())) {
+        const auto type = param->getType();
+        if (arrayElementContainsPointer(type)) {
             declKind(place, "array containing pointers",
                      param->getNameAsString());
         }
-        if (param->getType()->isRecordType() &&
-            typeContainsPointer(param->getType())) {
+        if (type->isRecordType() && typeContainsPointer(type)) {
             declKind(place, "struct containing pointer",
                      param->getNameAsString());
         }
-        if (!hasRole(param)) {
+        if (type->isPointerType() && !hasRole(param)) {
             const Sym pt =
                 control.point("ptr-missing-role:" + param->getNameAsString());
             recordPointLoc(pt, param);
@@ -258,7 +263,7 @@ void FactExtractorVisitor::extractFunction(const FunctionDecl *fd, Sym fn) {
     emitCfgEdges(fd, entry, exit);
 
     // TODO: stmts
-    // decodeStmt(fd->getBody());
+    decodeStmt(fd->getBody());
 }
 
 void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
@@ -394,6 +399,46 @@ void FactExtractorVisitor::emitCfgEdges(const FunctionDecl *fd, Sym entry,
     }
 }
 
+void FactExtractorVisitor::decodeStmt(const Stmt *stmt) {
+    if (stmt == nullptr) {
+        return;
+    }
+
+    if (stmt->getStmtClass() == Stmt::CompoundStmtClass) {
+        const auto *compound_stmt = clang::cast<clang::CompoundStmt>(stmt);
+        for (const Stmt *child : compound_stmt->body()) {
+            decodeStmt(child);
+        }
+        return;
+    }
+
+    const Sym entry = stmtPoint(stmt);
+    current_point = entry;
+
+    switch (stmt->getStmtClass()) {
+    case Stmt::IfStmtClass:
+    case Stmt::WhileStmtClass:
+    case Stmt::ForStmtClass:
+    case Stmt::SwitchStmtClass:
+    case Stmt::ReturnStmtClass:
+    case Stmt::DeclStmtClass:
+    case Stmt::CallExprClass:
+    case Stmt::BinaryOperatorClass:
+    case Stmt::UnaryOperatorClass:
+    case Stmt::CStyleCastExprClass:
+    case Stmt::CompoundAssignOperatorClass:
+    case Stmt::NullStmtClass:
+    default: {
+        const auto reason =
+            std::format("unrecognized construct {}", stmt->getStmtClassName());
+        Sym pt = control.point(reason);
+        recordSourceRangeLoc(pt, stmt->getSourceRange());
+        facts.err_internal.push_back({pt, interner.intern(reason)});
+        break;
+    }
+    }
+}
+
 Sym FactExtractorVisitor::placeForVar(const VarDecl *var_decl) {
     auto found = var_places.find(var_decl);
     if (found != var_places.end()) {
@@ -525,7 +570,8 @@ void FactExtractorVisitor::emitDeclFacts(const clang::Decl *decl, Sym place,
     if (const auto *var = dyn_cast<VarDecl>(decl)) {
         const bool tls = var->getTLSKind() != VarDecl::TLS_None;
         const bool atomic =
-            qt->isAtomicType() || qt->getPointeeType()->isAtomicType();
+            qt->isAtomicType() ||
+            (qt->isPointerType() && qt->getPointeeType()->isAtomicType());
         if (tls || atomic) {
             const std::string name = var->getNameAsString();
             const Sym decl_point = control.point("decl:" + name);
@@ -644,6 +690,13 @@ bool FactExtractorVisitor::isAddressOf(const clang::Expr *expr) const {
     }
 
     return false;
+}
+
+Sym FactExtractorVisitor::stmtPoint(const Stmt *stmt) const {
+    if (const auto found = stmt_pt.find(stmt); found != stmt_pt.end()) {
+        return found->second;
+    }
+    return current_point >= 0 ? current_point : fn_exit;
 }
 
 const char *FactExtractorVisitor::tag(const Stmt *stmt) {

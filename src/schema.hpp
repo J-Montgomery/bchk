@@ -23,13 +23,21 @@
     X(fn_decl, 2)                                                              \
     X(fn_variadic, 1)                                                          \
     X(fn_lifetime_bound, 2)                                                    \
+    X(fn_call, 3)                                                              \
     X(param_entry, 3)                                                          \
     X(param_idx, 3)                                                            \
     X(knr_promoted, 2)                                                         \
     X(loop_back_edge, 2)                                                       \
     X(lifetime_end, 2)                                                         \
     X(assume_init, 1)                                                          \
-    X(place_type, 2)
+    X(place_type, 2)                                                           \
+    X(event_bind, 3)                                                           \
+    X(event_store, 3)                                                          \
+    X(value_addr, 3)                                                           \
+    X(value_const, 2)                                                          \
+    X(value_arith, 3)                                                          \
+    X(value_read, 2)                                                           \
+    X(place_deref, 2)
 
 #define BCHK_ERR_RELATIONS(X)                                                  \
     X(err_unverified, 2)                                                       \
