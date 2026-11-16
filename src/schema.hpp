@@ -11,7 +11,9 @@
     X(fn_noreturn, 1)                                                          \
     X(role, 2)                                                                 \
     X(pointer_decl, 1)                                                         \
+    X(pointer_place, 1)                                                        \
     X(var_init, 1)                                                             \
+    X(local_var, 2)                                                            \
     X(global_decl, 1)                                                          \
     X(global_var, 1)                                                           \
     X(global_entry, 2)                                                         \
@@ -23,6 +25,10 @@
     X(fn_decl, 2)                                                              \
     X(fn_variadic, 1)                                                          \
     X(fn_lifetime_bound, 2)                                                    \
+    X(fn_return_type, 2)                                                       \
+    X(fn_return_role, 2)                                                       \
+    X(fn_return_init, 1)                                                       \
+    X(fn_return_lifetime_bound, 2)                                             \
     X(fn_call, 3)                                                              \
     X(param_entry, 3)                                                          \
     X(param_idx, 3)                                                            \
@@ -31,12 +37,51 @@
     X(lifetime_end, 2)                                                         \
     X(assume_init, 1)                                                          \
     X(place_type, 2)                                                           \
+    X(value_type, 2)                                                           \
+    X(type_pointee, 2)                                                        \
+    X(type_element, 2)                                                        \
+    X(type_fn_result, 2)                                                      \
+    X(type_fn_param, 3)                                                       \
+    X(type_fn_variadic, 1)                                                    \
+    X(type_integer, 1)                                                        \
+    X(type_floating, 1)                                                       \
+    X(type_enum, 1)                                                           \
+    X(type_void, 1)                                                           \
+    X(type_const, 1)                                                          \
+    X(type_volatile, 1)                                                       \
+    X(type_restrict, 1)                                                       \
+    X(type_pointer, 1)                                                         \
+    X(type_record, 1)                                                          \
+    X(type_union, 1)                                                           \
+    X(type_atomic, 1)                                                          \
+    X(type_array_of_pointer, 1)                                                \
+    X(type_contains_pointer, 1)                                                \
+    X(type_field, 4)                                                           \
+    X(typedef_type, 2)                                                         \
+    X(type_annotation, 2)                                                      \
+    X(annotation, 2)                                                           \
     X(event_bind, 3)                                                           \
+    X(event_copy, 3)                                                           \
+    X(event_load, 2)                                                           \
     X(event_store, 3)                                                          \
     X(value_addr, 3)                                                           \
     X(value_const, 2)                                                          \
+    X(value_literal, 2)                                                        \
     X(value_arith, 3)                                                          \
-    X(value_read, 2)                                                           \
+    X(value_cast, 4)                                                           \
+    X(value_call, 3)                                                           \
+    X(value_choice, 3)                                                         \
+    X(value_unknown, 1)                                                        \
+    X(call_indirect, 1)                                                        \
+    X(call_arg, 3)                                                             \
+    X(call_arg_value, 3)                                                       \
+    X(call_store_place, 3)                                                     \
+    X(return_place, 3)                                                         \
+    X(return_value, 3)                                                         \
+    X(return_call, 3)                                                          \
+    X(place_field, 3)                                                          \
+    X(place_elem, 3)                                                           \
+    X(place_bucket, 3)                                                         \
     X(place_deref, 2)
 
 #define BCHK_ERR_RELATIONS(X)                                                  \

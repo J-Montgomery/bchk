@@ -15,7 +15,7 @@
 #if defined(__cplusplus)
 #define LIFETIME_BOUND [[gsl::lifetimebound]]
 #else
-#define LIFETIME_BOUND __attribute((lifetimebound))
+#define LIFETIME_BOUND __attribute__((annotate("bc_lifetime_bound")))
 #endif
 
 #else

@@ -5,8 +5,11 @@
 #include <string>
 #include <vector>
 
+#include <clang/Tooling/CompilationDatabase.h>
+#include <clang/Tooling/Tooling.h>
 #include <gtest/gtest.h>
 #include <interface.hpp>
+#include "extractor.hpp"
 
 using namespace bchk;
 
@@ -34,6 +37,14 @@ bool relationPresent(const Report &report, const std::string &relation) {
 
 const std::string include_str = "#include <borrowck.h>\n";
 std::vector<std::string> args = {std::string("-I") + BCHK_TEST_INCLUDE_DIR};
+
+[[maybe_unused]] ExtractedFactSet extractFacts(const std::string &source) {
+    clang::tooling::FixedCompilationDatabase compilations(".", args);
+    clang::tooling::ClangTool tool(compilations, {"input.c"});
+    const std::string code = include_str + source;
+    tool.mapVirtualFile("input.c", code);
+    return generateFacts(tool);
+}
 
 [[maybe_unused]] Report expectSafe(const std::string &source) {
     const Report report = analyzeSrcString(include_str + source, args);

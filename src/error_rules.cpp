@@ -37,5 +37,7 @@ void buildErrorRules(Database &db, [[maybe_unused]] Interner &interner) {
     DL_RULE(db.query, (Point, Reason),
             db.err_unverified(Point, Reason) <=
                 db.err_unbodied_fn(Point, Reason));
+    DL_RULE(db.query, (Point, Reason),
+            db.err_unverified(Point, Reason) <= db.err_internal(Point, Reason));
 }
 } // namespace bchk
